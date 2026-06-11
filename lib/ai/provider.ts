@@ -5,8 +5,9 @@ import { mealSuggestionSchema } from "@/lib/validation";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt";
 import { callAnthropic } from "./anthropic";
 import { callOpenAI } from "./openai";
+import { callGemini } from "./gemini";
 
-export type AiProviderName = "anthropic" | "openai";
+export type AiProviderName = "anthropic" | "openai" | "gemini";
 
 /** プロバイダ実装が満たすべき契約: prompt を受け取り生テキストを返す */
 export interface AiProvider {
@@ -52,9 +53,20 @@ export function createAiProvider(): AiProvider {
             user,
           }),
       };
+    case "gemini":
+      return {
+        name: "gemini",
+        complete: (system, user) =>
+          callGemini({
+            apiKey: getEnv("GEMINI_API_KEY"),
+            model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+            system,
+            user,
+          }),
+      };
     default:
       throw new AiConfigError(
-        `AI_PROVIDER の値が不正です: "${provider}" (anthropic | openai)`
+        `AI_PROVIDER の値が不正です: "${provider}" (anthropic | openai | gemini)`
       );
   }
 }
