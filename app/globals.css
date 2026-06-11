@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  /* 夜の食卓をイメージした深緑×温かみのある生成り */
+  --color-ink: #1f2a24;
+  --color-pine: #2f5d46;
+  --color-pine-dark: #234736;
+  --color-paper: #fafaf7;
+  --color-card: #ffffff;
+  --color-line: #e4e6e0;
+  --color-amber: #d97f2b;
+  --color-muted: #6b7570;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    "Noto Sans JP", system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
