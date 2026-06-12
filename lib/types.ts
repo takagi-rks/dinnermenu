@@ -34,6 +34,8 @@ export interface MealRecord {
   rating: number | null; // 1-5
   memo: string;
   isFavorite: boolean;
+  /** 実食費(円)。null = 未記録 */
+  costYen: number | null;
   createdAt: string; // ISO 8601
 }
 
@@ -46,6 +48,7 @@ export interface CreateMealInput {
   rating?: number | null;
   memo?: string;
   isFavorite?: boolean;
+  costYen?: number | null;
 }
 
 /** 履歴更新リクエスト(部分更新) */
@@ -55,6 +58,7 @@ export interface UpdateMealInput {
   rating?: number | null;
   memo?: string;
   isFavorite?: boolean;
+  costYen?: number | null;
 }
 
 /** APIエラーレスポンスの共通形 */
@@ -88,4 +92,18 @@ export interface WeeklyMealPlan {
 export interface DishStat {
   dishName: string;
   count: number;
+}
+
+/** 月別食費集計 */
+export interface MonthlyCostSummary {
+  /** YYYY-MM 形式 */
+  yearMonth: string;
+  totalCostYen: number;
+  recordCount: number;
+}
+
+/** 1日再提案のレスポンス */
+export interface DayMealSuggestion {
+  main: WeeklyDish;
+  side: WeeklyDish;
 }

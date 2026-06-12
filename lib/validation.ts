@@ -30,6 +30,8 @@ const dateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "日付はYYYY-MM-DD形式で指定してください");
 
+const costYen = z.number().int().min(0).max(100000).nullable().optional();
+
 /** 履歴保存の検証 */
 export const createMealSchema = z.object({
   cookedOn: dateString,
@@ -39,6 +41,7 @@ export const createMealSchema = z.object({
   rating: z.number().int().min(1).max(5).nullable().optional(),
   memo: z.string().trim().max(2000).optional().default(""),
   isFavorite: z.boolean().optional().default(false),
+  costYen,
 });
 
 /** 履歴部分更新の検証 */
@@ -49,6 +52,7 @@ export const updateMealSchema = z
     rating: z.number().int().min(1).max(5).nullable().optional(),
     memo: z.string().trim().max(2000).optional(),
     isFavorite: z.boolean().optional(),
+    costYen,
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: "更新する項目を1つ以上指定してください",
@@ -83,10 +87,23 @@ export const weeklyMealPlanSchema = z.object({
   estimatedBudgetYen: z.number().int().min(0).max(200000),
 });
 
+/** AIが生成する1日分の再提案の検証 */
+export const dayMealSuggestionSchema = z.object({
+  main: weeklyDishSchema,
+  side: weeklyDishSchema,
+});
+
 /** 週間献立の一括保存リクエストの検証 */
 export const bulkCreateMealsSchema = z.object({
   meals: z
     .array(createMealSchema)
     .min(1, "保存する献立がありません")
     .max(20, "一括保存は20件までです"),
+});
+
+/** 1日再提案リクエストの検証 */
+export const dayResuggestSchema = z.object({
+  request: suggestionRequestSchema,
+  /** 週内の他の料理名(重複回避用) */
+  otherDishes: z.array(z.string().trim().min(1).max(100)).max(14),
 });

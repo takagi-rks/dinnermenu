@@ -1,8 +1,10 @@
 import type {
   CreateMealInput,
+  DayMealSuggestion,
   DishStat,
   MealRecord,
   MealSuggestion,
+  MonthlyCostSummary,
   SuggestionRequest,
   UpdateMealInput,
   WeeklyMealPlan,
@@ -81,4 +83,18 @@ export function postMealsBulk(meals: CreateMealInput[]): Promise<MealRecord[]> {
 
 export function fetchDishStats(): Promise<DishStat[]> {
   return request<DishStat[]>("/api/meals/stats");
+}
+
+export function postDayResuggest(
+  req: SuggestionRequest,
+  otherDishes: string[]
+): Promise<DayMealSuggestion> {
+  return request<DayMealSuggestion>("/api/weekly-suggest/day", {
+    method: "POST",
+    body: JSON.stringify({ request: req, otherDishes }),
+  });
+}
+
+export function fetchCostSummary(): Promise<MonthlyCostSummary[]> {
+  return request<MonthlyCostSummary[]>("/api/meals/cost-summary");
 }
