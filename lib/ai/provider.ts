@@ -59,7 +59,7 @@ export function createAiProvider(): AiProvider {
         complete: (system, user) =>
           callGemini({
             apiKey: getEnv("GEMINI_API_KEY"),
-            model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+            model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
             system,
             user,
           }),
