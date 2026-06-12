@@ -1,16 +1,23 @@
 import "server-only";
 
 import type {
+  DayMealSuggestion,
   MealSuggestion,
   SuggestionRequest,
   WeeklyMealPlan,
 } from "@/lib/types";
-import { mealSuggestionSchema, weeklyMealPlanSchema } from "@/lib/validation";
+import {
+  mealSuggestionSchema,
+  weeklyMealPlanSchema,
+  dayMealSuggestionSchema,
+} from "@/lib/validation";
 import {
   buildSystemPrompt,
   buildUserPrompt,
   buildWeeklySystemPrompt,
   buildWeeklyUserPrompt,
+  buildDayResuggestSystemPrompt,
+  buildDayResuggestUserPrompt,
 } from "./prompt";
 import { callAnthropic } from "./anthropic";
 import { callOpenAI } from "./openai";
@@ -153,4 +160,28 @@ export async function generateWeeklyMealPlan(
     ...parsed.data,
     days: [...parsed.data.days].sort((a, b) => a.dayIndex - b.dayIndex),
   };
+}
+
+/**
+ * 1日分の再提案ユースケース。
+ * otherDishes(週内の他の料理名)と recentDishes はどちらも呼び出し側が取得して渡す。
+ */
+export async function generateDayMealSuggestion(
+  request: SuggestionRequest,
+  otherDishes: string[],
+  recentDishes: string[] = []
+): Promise<DayMealSuggestion> {
+  const provider = createAiProvider();
+  const raw = await provider.complete(
+    buildDayResuggestSystemPrompt(),
+    buildDayResuggestUserPrompt(request, otherDishes, recentDishes)
+  );
+
+  const parsed = dayMealSuggestionSchema.safeParse(extractJson(raw));
+  if (!parsed.success) {
+    throw new AiResponseError(
+      "AIの応答が期待する形式ではありませんでした。再度お試しください"
+    );
+  }
+  return parsed.data;
 }

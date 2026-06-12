@@ -21,12 +21,22 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
   const [memoDraft, setMemoDraft] = useState(meal.memo);
   const [nameDraft, setNameDraft] = useState(meal.dishName);
   const [dateDraft, setDateDraft] = useState(meal.cookedOn);
+  const [costDraft, setCostDraft] = useState(
+    meal.costYen !== null ? String(meal.costYen) : ""
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const basicInfoDirty =
     nameDraft.trim() !== meal.dishName || dateDraft !== meal.cookedOn;
   const basicInfoValid = nameDraft.trim().length > 0 && dateDraft.length > 0;
+
+  const parsedCost =
+    costDraft.trim() === "" ? null : Number(costDraft.trim());
+  const costValid =
+    parsedCost === null ||
+    (!Number.isNaN(parsedCost) && parsedCost >= 0 && parsedCost <= 100000);
+  const costDirty = parsedCost !== meal.costYen;
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -57,6 +67,12 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
   const saveMemo = () =>
     run(async () => {
       const updated = await patchMeal(meal.id, { memo: memoDraft.trim() });
+      onChange(updated);
+    });
+
+  const saveCost = () =>
+    run(async () => {
+      const updated = await patchMeal(meal.id, { costYen: parsedCost });
       onChange(updated);
     });
 
@@ -181,6 +197,38 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
               </ol>
             </section>
           )}
+
+          <section>
+            <h4 className="mb-1 text-xs font-bold text-pine">実際の食費</h4>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                value={costDraft}
+                onChange={(e) => setCostDraft(e.target.value)}
+                min={0}
+                max={100000}
+                placeholder="例: 850"
+                aria-label="実際の食費(円)"
+                className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm focus:border-pine focus:outline-none"
+              />
+              <span className="shrink-0 text-sm text-muted">円</span>
+              <button
+                type="button"
+                onClick={saveCost}
+                disabled={busy || !costDirty || !costValid}
+                className="shrink-0 rounded-lg bg-pine px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+              >
+                保存
+              </button>
+            </div>
+            {!costValid && (
+              <p className="mt-1 text-xs text-red-600">0〜100,000円の値を入力してください</p>
+            )}
+            {meal.costYen !== null && (
+              <p className="mt-1 text-xs text-muted">記録済み: {meal.costYen.toLocaleString()}円</p>
+            )}
+          </section>
 
           <section>
             <h4 className="mb-1 text-xs font-bold text-pine">メモ</h4>

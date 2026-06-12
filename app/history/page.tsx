@@ -1,3 +1,4 @@
+import CostSummaryPanel from "@/components/CostSummaryPanel";
 import DishStatsPanel from "@/components/DishStatsPanel";
 import HistoryList from "@/components/HistoryList";
 
@@ -12,6 +13,7 @@ export default function HistoryPage() {
           作った料理の記録。評価やメモはここから編集できます。
         </p>
       </section>
+      <CostSummaryPanel />
       <DishStatsPanel />
       <HistoryList />
     </div>
