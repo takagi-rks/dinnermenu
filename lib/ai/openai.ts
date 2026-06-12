@@ -5,6 +5,7 @@ interface OpenAICallParams {
   model: string;
   system: string;
   user: string;
+  maxTokens?: number;
 }
 
 interface OpenAIResponse {
@@ -12,7 +13,8 @@ interface OpenAIResponse {
 }
 
 const API_URL = "https://api.openai.com/v1/chat/completions";
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 90_000;
+const DEFAULT_MAX_TOKENS = 2000;
 
 export async function callOpenAI(params: OpenAICallParams): Promise<string> {
   const response = await fetch(API_URL, {
@@ -23,7 +25,7 @@ export async function callOpenAI(params: OpenAICallParams): Promise<string> {
     },
     body: JSON.stringify({
       model: params.model,
-      max_tokens: 2000,
+      max_tokens: params.maxTokens ?? DEFAULT_MAX_TOKENS,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: params.system },

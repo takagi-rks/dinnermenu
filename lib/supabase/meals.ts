@@ -1,7 +1,12 @@
 import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { CreateMealInput, MealRecord, UpdateMealInput } from "@/lib/types";
+import type {
+  CreateMealInput,
+  DishStat,
+  MealRecord,
+  UpdateMealInput,
+} from "@/lib/types";
 
 /** DB行(snake_case)の型。境界変換はこのファイル内に閉じる */
 interface MealRow {
@@ -168,4 +173,58 @@ export async function deleteMeal(id: string): Promise<void> {
     console.error("deleteMeal failed:", error.message);
     throw new Error("献立の削除に失敗しました");
   }
+}
+
+/** 週間献立の一括保存(単一insertで原子的に登録) */
+export async function createMealsBulk(
+  inputs: CreateMealInput[]
+): Promise<MealRecord[]> {
+  const supabase = getSupabase();
+  const rows = inputs.map((input) => ({
+    cooked_on: input.cookedOn,
+    dish_name: input.dishName,
+    ingredients: input.ingredients,
+    steps: input.steps,
+    rating: input.rating ?? null,
+    memo: input.memo ?? "",
+    is_favorite: input.isFavorite ?? false,
+  }));
+
+  const { data, error } = await supabase.from("meals").insert(rows).select();
+  if (error) {
+    console.error("createMealsBulk failed:", error.message);
+    throw new Error("週間献立の保存に失敗しました");
+  }
+  return (data as MealRow[]).map(toRecord);
+}
+
+/** 統計集計の対象とする履歴の最大件数 */
+const STATS_SCAN_LIMIT = 2000;
+
+/**
+ * 料理名ごとの作成回数を集計して回数降順で返す。
+ * PostgRESTは任意のGROUP BYを直接扱えないため、dish_nameのみ取得してサーバー側で集計する。
+ */
+export async function getDishStats(topN: number): Promise<DishStat[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("meals")
+    .select("dish_name")
+    .order("created_at", { ascending: false })
+    .limit(STATS_SCAN_LIMIT);
+
+  if (error) {
+    console.error("getDishStats failed:", error.message);
+    throw new Error("統計の取得に失敗しました");
+  }
+
+  const counts = new Map<string, number>();
+  for (const row of data as Pick<MealRow, "dish_name">[]) {
+    counts.set(row.dish_name, (counts.get(row.dish_name) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([dishName, count]) => ({ dishName, count }))
+    .sort((a, b) => b.count - a.count || a.dishName.localeCompare(b.dishName, "ja"))
+    .slice(0, topN);
 }

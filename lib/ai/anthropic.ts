@@ -5,6 +5,7 @@ interface AnthropicCallParams {
   model: string;
   system: string;
   user: string;
+  maxTokens?: number;
 }
 
 interface AnthropicContentBlock {
@@ -17,7 +18,8 @@ interface AnthropicResponse {
 }
 
 const API_URL = "https://api.anthropic.com/v1/messages";
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 90_000;
+const DEFAULT_MAX_TOKENS = 2000;
 
 export async function callAnthropic(
   params: AnthropicCallParams
@@ -31,7 +33,7 @@ export async function callAnthropic(
     },
     body: JSON.stringify({
       model: params.model,
-      max_tokens: 2000,
+      max_tokens: params.maxTokens ?? DEFAULT_MAX_TOKENS,
       system: params.system,
       messages: [{ role: "user", content: params.user }],
     }),

@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { generateMealSuggestion, AiResponseError } from "@/lib/ai/provider";
+import { generateWeeklyMealPlan, AiResponseError } from "@/lib/ai/provider";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { listRecentDishNames } from "@/lib/supabase/meals";
 import { suggestionRequestSchema } from "@/lib/validation";
-import type { ApiError, MealSuggestion } from "@/lib/types";
+import type { ApiError, WeeklyMealPlan } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** 週間提案は出力が大きいため関数の最大実行時間を延長(Vercel) */
+export const maxDuration = 120;
+
 const RECENT_DISHES_COUNT = 10;
 
-/** 直近献立は提案の補助情報。取得に失敗しても提案自体は止めない */
 async function fetchRecentDishesSafely(): Promise<string[]> {
   try {
     return await listRecentDishNames(RECENT_DISHES_COUNT);
@@ -22,7 +24,8 @@ async function fetchRecentDishesSafely(): Promise<string[]> {
 
 export async function POST(
   request: Request
-): Promise<NextResponse<MealSuggestion | ApiError>> {
+): Promise<NextResponse<WeeklyMealPlan | ApiError>> {
+  // 単日提案と同じIPカウンタを共有(AIコストの大きい操作ほど保護が必要なため)
   if (!checkRateLimit(getClientIp(request))) {
     return NextResponse.json(
       { error: "リクエスト回数が上限を超えました。1時間後に再試行してください。" },
@@ -45,14 +48,14 @@ export async function POST(
 
   try {
     const recentDishes = await fetchRecentDishesSafely();
-    const suggestion = await generateMealSuggestion(parsed.data, recentDishes);
-    return NextResponse.json(suggestion);
+    const plan = await generateWeeklyMealPlan(parsed.data, recentDishes);
+    return NextResponse.json(plan);
   } catch (err) {
-    console.error("POST /api/suggest failed:", err);
+    console.error("POST /api/weekly-suggest failed:", err);
     const message =
       err instanceof AiResponseError
         ? err.message
-        : "献立の生成に失敗しました。時間をおいて再度お試しください";
+        : "週間献立の生成に失敗しました。時間をおいて再度お試しください";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

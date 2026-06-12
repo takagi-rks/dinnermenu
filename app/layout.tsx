@@ -31,6 +31,12 @@ export default function RootLayout({
                 提案
               </Link>
               <Link
+                href="/weekly"
+                className="rounded-full px-3 py-1.5 font-medium text-ink hover:bg-line/60"
+              >
+                週間
+              </Link>
+              <Link
                 href="/history"
                 className="rounded-full px-3 py-1.5 font-medium text-ink hover:bg-line/60"
               >
