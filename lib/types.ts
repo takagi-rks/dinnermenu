@@ -61,3 +61,31 @@ export interface UpdateMealInput {
 export interface ApiError {
   error: string;
 }
+
+/** 週間献立の1品(主菜または副菜) */
+export interface WeeklyDish {
+  dishName: string;
+  keyIngredients: string[];
+}
+
+/** 週間献立の1日分 */
+export interface DayMealPlan {
+  dayIndex: number; // 1〜7
+  main: WeeklyDish;
+  side: WeeklyDish;
+}
+
+/** AIが生成する1週間分の献立プラン */
+export interface WeeklyMealPlan {
+  days: DayMealPlan[];
+  /** 1週間分の買い足し食材リスト */
+  shoppingList: string[];
+  /** 1週間合計の目安予算 */
+  estimatedBudgetYen: number;
+}
+
+/** 料理名ごとの作成回数統計 */
+export interface DishStat {
+  dishName: string;
+  count: number;
+}

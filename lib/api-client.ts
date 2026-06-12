@@ -1,9 +1,11 @@
 import type {
   CreateMealInput,
+  DishStat,
   MealRecord,
   MealSuggestion,
   SuggestionRequest,
   UpdateMealInput,
+  WeeklyMealPlan,
 } from "@/lib/types";
 
 /** fetchの薄いラッパー。エラー時はAPIのerrorメッセージを投げる */
@@ -59,4 +61,24 @@ export function patchMeal(id: string, body: UpdateMealInput): Promise<MealRecord
 
 export function removeMeal(id: string): Promise<{ ok: true }> {
   return request<{ ok: true }>(`/api/meals/${id}`, { method: "DELETE" });
+}
+
+export function postWeeklySuggestion(
+  body: SuggestionRequest
+): Promise<WeeklyMealPlan> {
+  return request<WeeklyMealPlan>("/api/weekly-suggest", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function postMealsBulk(meals: CreateMealInput[]): Promise<MealRecord[]> {
+  return request<MealRecord[]>("/api/meals/bulk", {
+    method: "POST",
+    body: JSON.stringify({ meals }),
+  });
+}
+
+export function fetchDishStats(): Promise<DishStat[]> {
+  return request<DishStat[]>("/api/meals/stats");
 }

@@ -1,3 +1,4 @@
+import DishStatsPanel from "@/components/DishStatsPanel";
 import HistoryList from "@/components/HistoryList";
 
 export const metadata = { title: "献立履歴 | 今夜のごはん" };
@@ -11,6 +12,7 @@ export default function HistoryPage() {
           作った料理の記録。評価やメモはここから編集できます。
         </p>
       </section>
+      <DishStatsPanel />
       <HistoryList />
     </div>
   );

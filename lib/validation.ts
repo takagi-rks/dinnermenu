@@ -61,3 +61,32 @@ export const listMealsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+/** 週間献立の1品の検証 */
+const weeklyDishSchema = z.object({
+  dishName: z.string().trim().min(1).max(100),
+  keyIngredients: z.array(z.string().trim().min(1).max(100)).min(1).max(15),
+});
+
+/** AIが生成する週間献立プランの検証 — モデル出力は信用せず必ず検証する */
+export const weeklyMealPlanSchema = z.object({
+  days: z
+    .array(
+      z.object({
+        dayIndex: z.number().int().min(1).max(7),
+        main: weeklyDishSchema,
+        side: weeklyDishSchema,
+      })
+    )
+    .length(7, "7日分の献立が必要です"),
+  shoppingList: z.array(z.string().trim().min(1).max(100)).max(80),
+  estimatedBudgetYen: z.number().int().min(0).max(200000),
+});
+
+/** 週間献立の一括保存リクエストの検証 */
+export const bulkCreateMealsSchema = z.object({
+  meals: z
+    .array(createMealSchema)
+    .min(1, "保存する献立がありません")
+    .max(20, "一括保存は20件までです"),
+});

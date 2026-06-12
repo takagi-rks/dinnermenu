@@ -56,7 +56,10 @@
 
 | メソッド | パス | 説明 |
 | --- | --- | --- |
-| POST | `/api/suggest` | AI献立提案 |
+| POST | `/api/suggest` | AI献立提案(単日) |
+| POST | `/api/weekly-suggest` | AI週間献立提案(7日分・主菜+副菜) |
+| POST | `/api/meals/bulk` | 週間献立の一括保存(最大20件) |
+| GET | `/api/meals/stats` | 料理名ごとの作成回数統計(上位20件) |
 | GET | `/api/meals?q=&favorite=true` | 履歴一覧(日付降順・検索・絞り込み) |
 | POST | `/api/meals` | 履歴保存 |
 | PATCH | `/api/meals/:id` | 評価・メモ・お気に入り更新 |
