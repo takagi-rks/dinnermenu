@@ -20,50 +20,66 @@ interface GeminiResponse {
 
 const TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_TOKENS = 2000;
+const RETRY_DELAYS_MS = [1_000, 3_000] as const;
+const RETRYABLE_STATUSES = new Set([429, 503]);
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function callGemini(params: GeminiCallParams): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${params.model}:generateContent`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      // APIキーはクエリ文字列ではなくヘッダーで送る(アクセスログ等への漏えい防止)
-      "x-goog-api-key": params.apiKey,
+  const body = JSON.stringify({
+    systemInstruction: {
+      parts: [{ text: params.system }],
     },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: params.system }],
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: params.user }],
       },
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: params.user }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        responseMimeType: "application/json",
-        maxOutputTokens: params.maxTokens ?? DEFAULT_MAX_TOKENS,
-      },
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      responseMimeType: "application/json",
+      maxOutputTokens: params.maxTokens ?? DEFAULT_MAX_TOKENS,
+    },
   });
 
-  if (!response.ok) {
-    // 原因特定のためエラー詳細はサーバーログにのみ出力する(キーは含まれない)
-    console.error(
-      `Gemini API error: status=${response.status} model=${params.model}`,
-      await response.text().catch(() => "")
-    );
-    throw new Error(`Gemini APIの呼び出しに失敗しました (${response.status})`);
-  }
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        // APIキーはクエリ文字列ではなくヘッダーで送る(アクセスログ等への漏えい防止)
+        "x-goog-api-key": params.apiKey,
+      },
+      body,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
 
-  const data = (await response.json()) as GeminiResponse;
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!response.ok) {
+      // 原因特定のためエラー詳細はサーバーログにのみ出力する(キーは含まれない)
+      console.error(
+        `Gemini API error: status=${response.status} model=${params.model}`,
+        await response.text().catch(() => "")
+      );
 
-  if (!text) {
-    throw new Error("Gemini APIから空の応答が返されました");
+      const retryDelay = RETRY_DELAYS_MS[attempt];
+      if (RETRYABLE_STATUSES.has(response.status) && retryDelay !== undefined) {
+        await wait(retryDelay);
+        continue;
+      }
+
+      throw new Error(`Gemini APIの呼び出しに失敗しました (${response.status})`);
+    }
+
+    const data = (await response.json()) as GeminiResponse;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error("Gemini APIから空の応答が返されました");
+    }
+    return text;
   }
-  return text;
 }
