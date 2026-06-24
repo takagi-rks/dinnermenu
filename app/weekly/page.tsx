@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import SuggestForm from "@/components/SuggestForm";
 import WeeklyMealPlanView from "@/components/WeeklyMealPlan";
-import { postWeeklySuggestion } from "@/lib/api-client";
+import { ApiRequestError, postWeeklySuggestion } from "@/lib/api-client";
 import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
 import { carryCheckedItems, rebuildShoppingList } from "@/lib/weekly-shopping";
 import type { DayMealPlan, SuggestionRequest, WeeklyMealPlan } from "@/lib/types";
+
+const RECOVERABLE_GENERATION_STATUSES = new Set([429, 502, 503]);
+const RESTORED_PLAN_MESSAGE =
+  "AI生成に失敗したため、前回成功した週間献立を表示しました";
 
 /** ローカルタイムの今日をYYYY-MM-DD で返す */
 function todayString(): string {
@@ -58,6 +62,21 @@ export default function WeeklyPage() {
       setCheckedItems(new Array<boolean>(result.shoppingList.length).fill(false));
       setSaved(false);
     } catch (err) {
+      if (
+        err instanceof ApiRequestError &&
+        RECOVERABLE_GENERATION_STATUSES.has(err.status)
+      ) {
+        const stored = loadPlan();
+        if (stored) {
+          setPlan(stored.plan);
+          setRequest(stored.request);
+          setStartDate(stored.startDate);
+          setCheckedItems(stored.checkedItems);
+          setSaved(stored.saved);
+          setError(RESTORED_PLAN_MESSAGE);
+          return;
+        }
+      }
       setError(err instanceof Error ? err.message : "提案の取得に失敗しました");
     } finally {
       setLoading(false);

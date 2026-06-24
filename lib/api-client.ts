@@ -10,6 +10,13 @@ import type {
   WeeklyMealPlan,
 } from "@/lib/types";
 
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 /** fetchの薄いラッパー。エラー時はAPIのerrorメッセージを投げる */
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, {
@@ -24,7 +31,7 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
       typeof (data as { error: unknown }).error === "string"
         ? (data as { error: string }).error
         : "通信に失敗しました";
-    throw new Error(message);
+    throw new ApiRequestError(message, res.status);
   }
   return data as T;
 }
