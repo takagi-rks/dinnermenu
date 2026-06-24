@@ -2,6 +2,13 @@ import type { WeeklyDish } from "@/lib/types";
 
 export type WeeklyDishKind = "main" | "side";
 
+export interface WeeklyFavorite {
+  key: string;
+  kind: WeeklyDishKind;
+  dishName: string;
+  keyIngredients: string[];
+}
+
 const STORAGE_KEY = "dinnermenu:weekly-favorites:v1";
 
 function normalize(value: string): string {
@@ -36,4 +43,36 @@ export function saveWeeklyFavorites(keys: string[]): void {
   } catch {
     // localStorage容量超過等は握り潰す
   }
+}
+
+/**
+ * 保存済みの識別子を一覧表示用データに変換する。
+ * 現行の保存形式に合わない値は、呼び出し側で安全に除外できるよう null を返す。
+ */
+export function parseWeeklyFavorite(key: string): WeeklyFavorite | null {
+  const match = /^(main|side):([^:]+):(.*)$/.exec(key);
+  if (!match) return null;
+
+  const kind = match[1];
+  const dishName = match[2];
+  const ingredients = match[3];
+  if ((kind !== "main" && kind !== "side") || !dishName) return null;
+
+  return {
+    key,
+    kind,
+    dishName,
+    keyIngredients: ingredients
+      ? ingredients.split(",").filter((ingredient) => ingredient.length > 0)
+      : [],
+  };
+}
+
+export function loadWeeklyFavoriteEntries(): WeeklyFavorite[] {
+  const entries = new Map<string, WeeklyFavorite>();
+  for (const key of loadWeeklyFavorites()) {
+    const favorite = parseWeeklyFavorite(key);
+    if (favorite) entries.set(key, favorite);
+  }
+  return [...entries.values()];
 }
