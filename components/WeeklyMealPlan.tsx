@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { postMealsBulk, postDayResuggest } from "@/lib/api-client";
+import {
+  loadWeeklyFavorites,
+  saveWeeklyFavorites,
+  weeklyFavoriteKey,
+  type WeeklyDishKind,
+} from "@/lib/weekly-favorites";
+import { categorizeShoppingList } from "@/lib/weekly-shopping";
 
 import type {
   CreateMealInput,
   DayMealPlan,
   SuggestionRequest,
+  WeeklyDish,
   WeeklyMealPlan,
 } from "@/lib/types";
 
@@ -22,6 +30,8 @@ interface Props {
   onSaved: () => void;
   onClear: () => void;
 }
+
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
 /** YYYY-MM-DD に日数を加算(ローカルタイム基準) */
 function addDays(dateString: string, days: number): string {
@@ -43,21 +53,58 @@ function formatShort(dateString: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
+function formatWeekday(dateString: string): string {
+  const parts = dateString.split("-").map(Number);
+  const y = parts[0], m = parts[1], d = parts[2];
+  if (!y || !m || d === undefined) return "";
+  return WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()] ?? "";
+}
+
 function youtubeSearchUrl(dishName: string): string {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(
     `${dishName} レシピ`
   )}`;
 }
 
+function FavoriteButton({
+  active,
+  dishName,
+  onToggle,
+}: {
+  active: boolean;
+  dishName: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={active}
+      aria-label={active ? `${dishName}のお気に入りを解除` : `${dishName}をお気に入りに追加`}
+      className={`shrink-0 text-xl leading-none transition-transform active:scale-90 ${
+        active ? "text-amber" : "text-line hover:text-amber"
+      }`}
+    >
+      ★
+    </button>
+  );
+}
+
 function DishRow({
   label,
-  dishName,
-  ingredients,
+  kind,
+  dish,
+  favoriteKeys,
+  onFavoriteToggle,
 }: {
   label: string;
-  dishName: string;
-  ingredients: string[];
+  kind: WeeklyDishKind;
+  dish: WeeklyDish;
+  favoriteKeys: Set<string>;
+  onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
+  const favorite = favoriteKeys.has(weeklyFavoriteKey(kind, dish));
+
   return (
     <div className="flex items-start gap-3">
       <span className="mt-0.5 shrink-0 rounded-md bg-pine/10 px-2 py-0.5 text-xs font-bold text-pine">
@@ -65,20 +112,188 @@ function DishRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-bold">{dishName}</p>
+          <p className="truncate text-sm font-bold">{dish.dishName}</p>
+          <FavoriteButton
+            active={favorite}
+            dishName={dish.dishName}
+            onToggle={() => onFavoriteToggle(kind, dish)}
+          />
           <a
-            href={youtubeSearchUrl(dishName)}
+            href={youtubeSearchUrl(dish.dishName)}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`${dishName}のレシピ動画をYouTubeで検索`}
+            aria-label={`${dish.dishName}のレシピ動画をYouTubeで検索`}
             className="shrink-0 rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-100"
           >
             ▶ 動画
           </a>
         </div>
-        <p className="mt-0.5 text-xs text-muted">{ingredients.join("、")}</p>
+        <p className="mt-0.5 text-xs text-muted">
+          {dish.keyIngredients.join("、")}
+        </p>
       </div>
     </div>
+  );
+}
+
+function CalendarView({
+  days,
+  startDate,
+  favoriteKeys,
+  onFavoriteToggle,
+}: {
+  days: DayMealPlan[];
+  startDate: string;
+  favoriteKeys: Set<string>;
+  onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-muted">カレンダー表示</p>
+          <h3 className="text-base font-bold text-pine">
+            {formatShort(startDate)} 〜 {formatShort(addDays(startDate, 6))}
+          </h3>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {days.map((day) => {
+          const date = addDays(startDate, day.dayIndex - 1);
+          return (
+            <div
+              key={day.dayIndex}
+              className="rounded-xl border border-line bg-paper p-3"
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-bold text-ink">
+                  {formatShort(date)}
+                  <span className="ml-1 text-xs text-muted">
+                    ({formatWeekday(date)})
+                  </span>
+                </p>
+                <span className="rounded-full bg-pine/10 px-2 py-0.5 text-xs font-bold text-pine">
+                  {day.dayIndex}日目
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-bold text-pine">主菜</p>
+                    <FavoriteButton
+                      active={favoriteKeys.has(weeklyFavoriteKey("main", day.main))}
+                      dishName={day.main.dishName}
+                      onToggle={() => onFavoriteToggle("main", day.main)}
+                    />
+                  </div>
+                  <p className="mt-0.5 text-sm font-semibold leading-snug">
+                    {day.main.dishName}
+                  </p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-bold text-amber">副菜</p>
+                    <FavoriteButton
+                      active={favoriteKeys.has(weeklyFavoriteKey("side", day.side))}
+                      dishName={day.side.dishName}
+                      onToggle={() => onFavoriteToggle("side", day.side)}
+                    />
+                  </div>
+                  <p className="mt-0.5 text-sm font-semibold leading-snug">
+                    {day.side.dishName}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ShoppingMode({
+  shoppingList,
+  checkedItems,
+  onCheckedChange,
+}: {
+  shoppingList: string[];
+  checkedItems: boolean[];
+  onCheckedChange: (index: number) => void;
+}) {
+  const categories = useMemo(
+    () => categorizeShoppingList(shoppingList),
+    [shoppingList]
+  );
+  const checkedCount = shoppingList.filter(
+    (_, index) => checkedItems[index] ?? false
+  ).length;
+
+  if (shoppingList.length === 0) return null;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+      <div className="bg-pine px-5 py-4 text-white">
+        <p className="text-xs opacity-80">スーパー買い物モード</p>
+        <div className="mt-1 flex items-end justify-between gap-3">
+          <h3 className="text-lg font-bold">カテゴリ別チェックリスト</h3>
+          <p className="shrink-0 text-sm font-bold">
+            {checkedCount}/{shoppingList.length}
+          </p>
+        </div>
+      </div>
+
+      <div className="divide-y divide-line">
+        {categories.map((category) => {
+          const categoryCheckedCount = category.items.filter(
+            ({ originalIndex }) => checkedItems[originalIndex] ?? false
+          ).length;
+
+          return (
+            <section key={category.id} className="px-4 py-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-sm font-bold text-pine">{category.label}</h4>
+                <p className="text-xs font-semibold text-muted">
+                  {categoryCheckedCount}/{category.items.length}
+                </p>
+              </div>
+              <ul className="space-y-2">
+                {category.items.map(({ item, originalIndex }) => {
+                  const checked = checkedItems[originalIndex] ?? false;
+                  return (
+                    <li key={`${originalIndex}-${item}`}>
+                      <label
+                        htmlFor={`shop-mode-${originalIndex}`}
+                        className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 transition-colors ${
+                          checked
+                            ? "border-line bg-paper text-muted"
+                            : "border-line bg-card text-ink hover:border-pine/40"
+                        }`}
+                      >
+                        <input
+                          id={`shop-mode-${originalIndex}`}
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => onCheckedChange(originalIndex)}
+                          className="h-5 w-5 shrink-0 accent-pine"
+                        />
+                        <span
+                          className={`text-base font-semibold leading-snug ${
+                            checked ? "line-through" : ""
+                          }`}
+                        >
+                          {item}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -87,13 +302,17 @@ function DayCard({
   date,
   request,
   allDays,
+  favoriteKeys,
   onReplace,
+  onFavoriteToggle,
 }: {
   day: DayMealPlan;
   date: string;
   request: SuggestionRequest;
   allDays: DayMealPlan[];
+  favoriteKeys: Set<string>;
   onReplace: (updated: DayMealPlan) => void;
+  onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
   const [resuggesting, setResuggesting] = useState(false);
   const [resuggestError, setResuggestError] = useState<string | null>(null);
@@ -138,13 +357,17 @@ function DayCard({
       )}
       <DishRow
         label="主菜"
-        dishName={day.main.dishName}
-        ingredients={day.main.keyIngredients}
+        kind="main"
+        dish={day.main}
+        favoriteKeys={favoriteKeys}
+        onFavoriteToggle={onFavoriteToggle}
       />
       <DishRow
         label="副菜"
-        dishName={day.side.dishName}
-        ingredients={day.side.keyIngredients}
+        kind="side"
+        dish={day.side}
+        favoriteKeys={favoriteKeys}
+        onFavoriteToggle={onFavoriteToggle}
       />
     </li>
   );
@@ -164,6 +387,26 @@ export default function WeeklyMealPlanView({
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [planView, setPlanView] = useState<"calendar" | "list">("calendar");
+  const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setFavoriteKeys(new Set(loadWeeklyFavorites()));
+  }, []);
+
+  const handleFavoriteToggle = (kind: WeeklyDishKind, dish: WeeklyDish) => {
+    setFavoriteKeys((prev) => {
+      const key = weeklyFavoriteKey(kind, dish);
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      saveWeeklyFavorites([...next]);
+      return next;
+    });
+  };
 
   const handleSaveAll = async () => {
     setSaving(true);
@@ -199,69 +442,76 @@ export default function WeeklyMealPlanView({
 
   return (
     <div className="space-y-4">
-      {/* 週間カード */}
-      <article className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-        <div className="bg-pine px-5 py-4 text-white">
-          <p className="text-xs opacity-80">1週間の献立プラン</p>
-          <h2 className="text-lg font-bold">
-            {formatShort(startDate)} 〜 {formatShort(addDays(startDate, 6))}
-          </h2>
-          <p className="mt-1 text-xs opacity-90">
-            週合計の目安 {plan.estimatedBudgetYen.toLocaleString()}円
-          </p>
+      <section className="rounded-2xl border border-line bg-card p-3 shadow-sm">
+        <div className="flex items-center rounded-xl bg-paper p-1">
+          <button
+            type="button"
+            onClick={() => setPlanView("calendar")}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+              planView === "calendar"
+                ? "bg-pine text-white"
+                : "text-muted hover:bg-line/60"
+            }`}
+          >
+            カレンダー
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlanView("list")}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+              planView === "list"
+                ? "bg-pine text-white"
+                : "text-muted hover:bg-line/60"
+            }`}
+          >
+            カード
+          </button>
         </div>
+      </section>
 
-        <ul className="divide-y divide-line">
-          {plan.days.map((day) => (
-            <DayCard
-              key={day.dayIndex}
-              day={day}
-              date={addDays(startDate, day.dayIndex - 1)}
-              request={request}
-              allDays={plan.days}
-              onReplace={(updated) => onDayReplace(day.dayIndex, updated)}
-            />
-          ))}
-        </ul>
-      </article>
-
-      {/* 買い物リスト(チェックリスト) */}
-      {plan.shoppingList.length > 0 && (
-        <section className="rounded-2xl border border-line bg-card p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold text-pine">
-            1週間分の買い物リスト
-          </h3>
-          <ul className="space-y-2">
-            {plan.shoppingList.map((item, index) => {
-              const checked = checkedItems[index] ?? false;
-              return (
-                <li key={item} className="flex items-center gap-3">
-                  <input
-                    id={`shop-${index}`}
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onCheckedChange(index)}
-                    className="h-4 w-4 shrink-0 accent-pine"
-                  />
-                  <label
-                    htmlFor={`shop-${index}`}
-                    className={`text-sm leading-snug ${
-                      checked ? "text-muted line-through" : "text-ink"
-                    }`}
-                  >
-                    {item}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-          {checkedItems.some(Boolean) && (
-            <p className="mt-2 text-xs text-muted">
-              {checkedItems.filter(Boolean).length}/{plan.shoppingList.length} 完了
-            </p>
-          )}
-        </section>
+      {planView === "calendar" && (
+        <CalendarView
+          days={plan.days}
+          startDate={startDate}
+          favoriteKeys={favoriteKeys}
+          onFavoriteToggle={handleFavoriteToggle}
+        />
       )}
+
+      {planView === "list" && (
+        <article className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+          <div className="bg-pine px-5 py-4 text-white">
+            <p className="text-xs opacity-80">1週間の献立プラン</p>
+            <h2 className="text-lg font-bold">
+              {formatShort(startDate)} 〜 {formatShort(addDays(startDate, 6))}
+            </h2>
+            <p className="mt-1 text-xs opacity-90">
+              週合計の目安 {plan.estimatedBudgetYen.toLocaleString()}円
+            </p>
+          </div>
+
+          <ul className="divide-y divide-line">
+            {plan.days.map((day) => (
+              <DayCard
+                key={day.dayIndex}
+                day={day}
+                date={addDays(startDate, day.dayIndex - 1)}
+                request={request}
+                allDays={plan.days}
+                favoriteKeys={favoriteKeys}
+                onReplace={(updated) => onDayReplace(day.dayIndex, updated)}
+                onFavoriteToggle={handleFavoriteToggle}
+              />
+            ))}
+          </ul>
+        </article>
+      )}
+
+      <ShoppingMode
+        shoppingList={plan.shoppingList}
+        checkedItems={checkedItems}
+        onCheckedChange={onCheckedChange}
+      />
 
       {/* 保存・操作パネル */}
       <section className="space-y-3 rounded-2xl border border-line bg-card p-5 shadow-sm">

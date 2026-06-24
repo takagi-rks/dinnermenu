@@ -5,6 +5,7 @@ import SuggestForm from "@/components/SuggestForm";
 import WeeklyMealPlanView from "@/components/WeeklyMealPlan";
 import { postWeeklySuggestion } from "@/lib/api-client";
 import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
+import { carryCheckedItems, rebuildShoppingList } from "@/lib/weekly-shopping";
 import type { DayMealPlan, SuggestionRequest, WeeklyMealPlan } from "@/lib/types";
 
 /** ローカルタイムの今日をYYYY-MM-DD で返す */
@@ -79,13 +80,28 @@ export default function WeeklyPage() {
     (dayIndex: number, updated: DayMealPlan) => {
       setPlan((prev) => {
         if (!prev) return prev;
+        const nextDays = prev.days.map((d) =>
+          d.dayIndex === dayIndex ? updated : d
+        );
+        const nextShoppingList = rebuildShoppingList(
+          nextDays,
+          request?.availableIngredients ?? []
+        );
+        setCheckedItems((currentCheckedItems) =>
+          carryCheckedItems(
+            prev.shoppingList,
+            currentCheckedItems,
+            nextShoppingList
+          )
+        );
         return {
           ...prev,
-          days: prev.days.map((d) => (d.dayIndex === dayIndex ? updated : d)),
+          days: nextDays,
+          shoppingList: nextShoppingList,
         };
       });
     },
-    []
+    [request]
   );
 
   const handleSaved = useCallback(() => {
