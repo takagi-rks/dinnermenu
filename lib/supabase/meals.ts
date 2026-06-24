@@ -25,6 +25,32 @@ interface MealRow {
 
 let cachedClient: SupabaseClient | null = null;
 
+function describeErrorCause(cause: unknown): unknown {
+  if (cause instanceof Error) {
+    return { name: cause.name, message: cause.message };
+  }
+  if (typeof cause === "string" || typeof cause === "number" || typeof cause === "boolean") {
+    return cause;
+  }
+  return cause === undefined ? undefined : "Unknown cause";
+}
+
+function createSupabaseFetch(host: string): typeof fetch {
+  return async (input, init) => {
+    try {
+      return await fetch(input, init);
+    } catch (error: unknown) {
+      console.error("Supabase fetch failed", {
+        host,
+        name: error instanceof Error ? error.name : "UnknownError",
+        message: error instanceof Error ? error.message : "Unknown error",
+        cause: error instanceof Error ? describeErrorCause(error.cause) : undefined,
+      });
+      throw error;
+    }
+  };
+}
+
 function getSupabase(): SupabaseClient {
   if (cachedClient) return cachedClient;
   const url = process.env.SUPABASE_URL;
@@ -32,7 +58,10 @@ function getSupabase(): SupabaseClient {
   if (!url || !key) {
     throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY が設定されていません");
   }
-  cachedClient = createClient(url, key, { auth: { persistSession: false } });
+  cachedClient = createClient(url, key, {
+    auth: { persistSession: false },
+    global: { fetch: createSupabaseFetch(new URL(url).host) },
+  });
   return cachedClient;
 }
 
