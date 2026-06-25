@@ -1,5 +1,7 @@
 import "server-only";
 
+import { AiResponseError } from "./errors";
+
 interface GeminiCallParams {
   apiKey: string;
   model: string;
@@ -69,6 +71,17 @@ export async function callGemini(params: GeminiCallParams): Promise<string> {
       if (RETRYABLE_STATUSES.has(response.status) && retryDelay !== undefined) {
         await wait(retryDelay);
         continue;
+      }
+
+      if (response.status === 429) {
+        throw new AiResponseError(
+          "本日のAI無料利用枠に達しました。時間をおいて再試行するか、別のAIプロバイダに切り替えてください。"
+        );
+      }
+      if (response.status === 503) {
+        throw new AiResponseError(
+          "AIが混雑しています。少し時間をおいて再試行してください。"
+        );
       }
 
       throw new Error(`Gemini APIの呼び出しに失敗しました (${response.status})`);

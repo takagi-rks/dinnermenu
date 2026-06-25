@@ -9,6 +9,10 @@ import {
   type WeeklyDishKind,
 } from "@/lib/weekly-favorites";
 import { categorizeShoppingList } from "@/lib/weekly-shopping";
+import {
+  findLocalDaySuggestion,
+  type WeeklyCandidate,
+} from "@/lib/weekly-plan-builder";
 
 import type {
   CreateMealInput,
@@ -24,6 +28,7 @@ interface Props {
   startDate: string;
   checkedItems: boolean[];
   saved: boolean;
+  candidates: WeeklyCandidate[];
   onStartDateChange: (date: string) => void;
   onCheckedChange: (index: number) => void;
   onDayReplace: (dayIndex: number, updated: DayMealPlan) => void;
@@ -303,6 +308,7 @@ function DayCard({
   request,
   allDays,
   favoriteKeys,
+  candidates,
   onReplace,
   onFavoriteToggle,
 }: {
@@ -311,19 +317,37 @@ function DayCard({
   request: SuggestionRequest;
   allDays: DayMealPlan[];
   favoriteKeys: Set<string>;
+  candidates: WeeklyCandidate[];
   onReplace: (updated: DayMealPlan) => void;
   onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
   const [resuggesting, setResuggesting] = useState(false);
   const [resuggestError, setResuggestError] = useState<string | null>(null);
 
-  const handleResuggest = async () => {
+  const otherDishes = allDays
+    .filter((item) => item.dayIndex !== day.dayIndex)
+    .flatMap((item) => [item.main.dishName, item.side.dishName]);
+
+  const handleLocalResuggest = () => {
+    setResuggestError(null);
+    const result = findLocalDaySuggestion(candidates, request, [
+      ...otherDishes,
+      day.main.dishName,
+      day.side.dishName,
+    ]);
+    if (!result) {
+      setResuggestError(
+        "変更に使える主菜・副菜の候補がありません。AIでの再提案をお試しください。"
+      );
+      return;
+    }
+    onReplace({ ...day, main: result.main, side: result.side });
+  };
+
+  const handleAiResuggest = async () => {
     setResuggesting(true);
     setResuggestError(null);
     try {
-      const otherDishes = allDays
-        .filter((d) => d.dayIndex !== day.dayIndex)
-        .flatMap((d) => [d.main.dishName, d.side.dishName]);
       const result = await postDayResuggest(request, otherDishes);
       onReplace({ ...day, main: result.main, side: result.side });
     } catch (err) {
@@ -341,14 +365,24 @@ function DayCard({
         <p className="text-xs font-bold text-muted">
           {day.dayIndex}日目({formatShort(date)})
         </p>
-        <button
-          type="button"
-          onClick={handleResuggest}
-          disabled={resuggesting}
-          className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-pine/50 disabled:opacity-40"
-        >
-          {resuggesting ? "考え中…" : "この日だけ再提案"}
-        </button>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={handleLocalResuggest}
+            disabled={resuggesting}
+            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-pine/50 disabled:opacity-40"
+          >
+            お気に入り・履歴から変更
+          </button>
+          <button
+            type="button"
+            onClick={handleAiResuggest}
+            disabled={resuggesting}
+            className="rounded-lg border border-pine px-2.5 py-1 text-xs font-semibold text-pine transition-colors hover:bg-pine/5 disabled:opacity-40"
+          >
+            {resuggesting ? "AI考案中…" : "AIで再提案"}
+          </button>
+        </div>
       </div>
       {resuggestError && (
         <p role="alert" className="text-xs font-medium text-red-600">
@@ -379,6 +413,7 @@ export default function WeeklyMealPlanView({
   startDate,
   checkedItems,
   saved,
+  candidates,
   onStartDateChange,
   onCheckedChange,
   onDayReplace,
@@ -499,6 +534,7 @@ export default function WeeklyMealPlanView({
                 request={request}
                 allDays={plan.days}
                 favoriteKeys={favoriteKeys}
+                candidates={candidates}
                 onReplace={(updated) => onDayReplace(day.dayIndex, updated)}
                 onFavoriteToggle={handleFavoriteToggle}
               />

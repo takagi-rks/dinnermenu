@@ -89,6 +89,8 @@ export interface ListMealsParams {
   favoriteOnly?: boolean;
   limit: number;
   offset: number;
+  from?: string;
+  to?: string;
 }
 
 export async function listMeals(params: ListMealsParams): Promise<MealRecord[]> {
@@ -101,6 +103,8 @@ export async function listMeals(params: ListMealsParams): Promise<MealRecord[]> 
     .range(params.offset, params.offset + params.limit - 1);
 
   if (params.favoriteOnly) query = query.eq("is_favorite", true);
+  if (params.from) query = query.gte("cooked_on", params.from);
+  if (params.to) query = query.lte("cooked_on", params.to);
   if (params.q) {
     const term = sanitizeSearchTerm(params.q);
     if (term) query = query.or(`dish_name.ilike.*${term}*,memo.ilike.*${term}*`);

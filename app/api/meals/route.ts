@@ -24,6 +24,8 @@ export async function GET(
       favoriteOnly: parsed.data.favorite === "true",
       limit: parsed.data.limit,
       offset: parsed.data.offset,
+      from: parsed.data.from,
+      to: parsed.data.to,
     });
     return NextResponse.json(meals);
   } catch (err) {

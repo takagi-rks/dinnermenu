@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   loadWeeklyFavoriteEntries,
   loadWeeklyFavorites,
@@ -43,18 +44,33 @@ export default function FavoriteRecipesList() {
 
   if (favorites.length === 0) {
     return (
-      <div className="rounded-2xl border border-line bg-card px-5 py-8 text-center shadow-sm">
-        <p className="font-bold text-ink">お気に入りはまだありません</p>
-        <p className="mt-1 text-sm text-muted">
-          週間献立の料理にある星を押すと、ここに表示されます。
-        </p>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-line bg-card px-5 py-8 text-center shadow-sm">
+          <p className="font-bold text-ink">お気に入りはまだありません</p>
+          <p className="mt-1 text-sm text-muted">
+            週間献立の料理にある星を押すと、ここに表示されます。
+          </p>
+        </div>
+        <Link
+          href="/weekly?favorites=1"
+          className="block rounded-xl bg-pine px-4 py-3 text-center text-sm font-bold text-white hover:bg-pine-dark"
+        >
+          履歴から週間献立を作る
+        </Link>
       </div>
     );
   }
 
   return (
-    <ul className="space-y-3">
-      {favorites.map((favorite) => (
+    <div className="space-y-4">
+      <Link
+        href="/weekly?favorites=1"
+        className="block rounded-xl bg-pine px-4 py-3 text-center text-sm font-bold text-white hover:bg-pine-dark"
+      >
+        お気に入り・履歴から週間献立を作る
+      </Link>
+      <ul className="space-y-3">
+        {favorites.map((favorite) => (
         <li
           key={favorite.key}
           className="rounded-2xl border border-line bg-card p-5 shadow-sm"
@@ -98,7 +114,8 @@ export default function FavoriteRecipesList() {
             ▶ YouTubeでレシピを検索
           </a>
         </li>
-      ))}
-    </ul>
+        ))}
+      </ul>
+    </div>
   );
 }

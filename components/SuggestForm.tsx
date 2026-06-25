@@ -6,6 +6,10 @@ import type { SuggestionRequest } from "@/lib/types";
 interface Props {
   loading: boolean;
   onSubmit: (request: SuggestionRequest) => void;
+  submitLabel?: string;
+  loadingLabel?: string;
+  secondarySubmitLabel?: string;
+  onSecondarySubmit?: (request: SuggestionRequest) => void;
 }
 
 const MOOD_PRESETS = [
@@ -25,7 +29,14 @@ function parseIngredients(raw: string): string[] {
     .slice(0, 30);
 }
 
-export default function SuggestForm({ loading, onSubmit }: Props) {
+export default function SuggestForm({
+  loading,
+  onSubmit,
+  submitLabel = "今夜の献立を提案してもらう",
+  loadingLabel = "考え中…",
+  secondarySubmitLabel,
+  onSecondarySubmit,
+}: Props) {
   const [servings, setServings] = useState(2);
   const [budgetYen, setBudgetYen] = useState(1500);
   const [cookingTime, setCookingTime] = useState(30);
@@ -33,16 +44,14 @@ export default function SuggestForm({ loading, onSubmit }: Props) {
   const [avoid, setAvoid] = useState("");
   const [mood, setMood] = useState("");
 
-  const handleSubmit = () => {
-    onSubmit({
+  const createRequest = (): SuggestionRequest => ({
       servings,
       budgetYen,
       cookingTimeMinutes: cookingTime,
       availableIngredients: parseIngredients(available),
       avoidIngredients: parseIngredients(avoid),
       mood: mood.trim(),
-    });
-  };
+  });
 
   const inputClass =
     "w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20";
@@ -163,14 +172,26 @@ export default function SuggestForm({ loading, onSubmit }: Props) {
         />
       </div>
 
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={loading}
-        className="w-full rounded-xl bg-pine py-3.5 text-base font-bold text-white transition-colors hover:bg-pine-dark disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {loading ? "考え中…" : "今夜の献立を提案してもらう"}
-      </button>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => onSubmit(createRequest())}
+          disabled={loading}
+          className="w-full rounded-xl bg-pine py-3.5 text-base font-bold text-white transition-colors hover:bg-pine-dark disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loading ? loadingLabel : submitLabel}
+        </button>
+        {onSecondarySubmit && secondarySubmitLabel && (
+          <button
+            type="button"
+            onClick={() => onSecondarySubmit(createRequest())}
+            disabled={loading}
+            className="w-full rounded-xl border border-pine bg-card py-3 text-sm font-bold text-pine transition-colors hover:bg-pine/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {secondarySubmitLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

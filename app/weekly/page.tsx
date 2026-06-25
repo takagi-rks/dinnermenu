@@ -1,16 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import SuggestForm from "@/components/SuggestForm";
 import WeeklyMealPlanView from "@/components/WeeklyMealPlan";
-import { ApiRequestError, postWeeklySuggestion } from "@/lib/api-client";
+import {
+  ApiRequestError,
+  fetchMeals,
+  postWeeklySuggestion,
+} from "@/lib/api-client";
 import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
+import { loadWeeklyFavoriteEntries } from "@/lib/weekly-favorites";
+import {
+  buildWeeklyPlan,
+  favoritesToCandidates,
+  hasFullWeekCandidates,
+  mealsToCandidates,
+  uniqueCandidates,
+  type WeeklyCandidate,
+} from "@/lib/weekly-plan-builder";
 import { carryCheckedItems, rebuildShoppingList } from "@/lib/weekly-shopping";
 import type { DayMealPlan, SuggestionRequest, WeeklyMealPlan } from "@/lib/types";
 
 const RECOVERABLE_GENERATION_STATUSES = new Set([429, 502, 503]);
 const RESTORED_PLAN_MESSAGE =
   "AI生成に失敗したため、前回成功した週間献立を表示しました";
+const FAVORITES_MODE_MESSAGE =
+  "お気に入りを最優先し、不足分は週間保存済みの履歴から補完します。足りない場合だけAI補完ボタンを使えます。";
 
 /** ローカルタイムの今日をYYYY-MM-DD で返す */
 function todayString(): string {
@@ -22,7 +38,9 @@ function todayString(): string {
   ].join("-");
 }
 
-export default function WeeklyPage() {
+function WeeklyPageContent() {
+  const searchParams = useSearchParams();
+  const favoritesMode = searchParams.get("favorites") === "1";
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<WeeklyMealPlan | null>(null);
   const [request, setRequest] = useState<SuggestionRequest | null>(null);
@@ -31,6 +49,17 @@ export default function WeeklyPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [candidates, setCandidates] = useState<WeeklyCandidate[]>([]);
+
+  const loadCandidates = useCallback(async (): Promise<WeeklyCandidate[]> => {
+    const favorites = favoritesToCandidates(loadWeeklyFavoriteEntries());
+    try {
+      const meals = await fetchMeals({ limit: 100 });
+      return [...favorites, ...mealsToCandidates(meals)];
+    } catch {
+      return favorites;
+    }
+  }, []);
 
   // マウント後にlocalStorageを復元(SSRとの不一致を避けるため useEffect 内で実行)
   useEffect(() => {
@@ -43,7 +72,11 @@ export default function WeeklyPage() {
       setSaved(stored.saved);
     }
     setHydrated(true);
-  }, []);
+
+    if (stored || favoritesMode) {
+      void loadCandidates().then(setCandidates);
+    }
+  }, [favoritesMode, loadCandidates]);
 
   // plan / checked / saved が変わるたびに localStorage へ永続化
   useEffect(() => {
@@ -51,16 +84,54 @@ export default function WeeklyPage() {
     savePlan({ plan, request, startDate, checkedItems, saved });
   }, [hydrated, plan, request, startDate, checkedItems, saved]);
 
-  const handleSubmit = async (req: SuggestionRequest) => {
+  const showPlan = (
+    result: WeeklyMealPlan,
+    req: SuggestionRequest,
+    availableCandidates: WeeklyCandidate[]
+  ) => {
+    setPlan(result);
+    setRequest(req);
+    setCandidates(availableCandidates);
+    setStartDate(todayString());
+    setCheckedItems(new Array<boolean>(result.shoppingList.length).fill(false));
+    setSaved(false);
+  };
+
+  const handleLocalSubmit = async (req: SuggestionRequest) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await postWeeklySuggestion(req);
-      setPlan(result);
-      setRequest(req);
-      setStartDate(todayString());
-      setCheckedItems(new Array<boolean>(result.shoppingList.length).fill(false));
-      setSaved(false);
+      const availableCandidates = await loadCandidates();
+      const result = buildWeeklyPlan(availableCandidates, req);
+      if (!result) {
+        setError(
+          "AIなしで作成するには、食材情報のある主菜と副菜をそれぞれ1品以上お気に入りまたは週間保存済みの履歴に登録してください。"
+        );
+        return;
+      }
+      showPlan(result, req, availableCandidates);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "履歴の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAiAssistedSubmit = async (req: SuggestionRequest) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const availableCandidates = await loadCandidates();
+      setCandidates(availableCandidates);
+      const filtered = uniqueCandidates(availableCandidates, req);
+      const generated = hasFullWeekCandidates(filtered)
+        ? undefined
+        : await postWeeklySuggestion(req);
+      const result = buildWeeklyPlan(availableCandidates, req, generated);
+      if (!result) {
+        throw new Error("週間献立の作成に必要な候補を用意できませんでした");
+      }
+      showPlan(result, req, availableCandidates);
     } catch (err) {
       if (
         err instanceof ApiRequestError &&
@@ -135,6 +206,7 @@ export default function WeeklyPage() {
     setStartDate(todayString());
     setCheckedItems([]);
     setSaved(false);
+    setCandidates([]);
   }, []);
 
   return (
@@ -142,14 +214,33 @@ export default function WeeklyPage() {
       <section>
         <h1 className="text-xl font-bold">1週間まとめて決める</h1>
         <p className="mt-1 text-sm text-muted">
-          7日分の主菜・副菜と買い物リストをAIがまとめて提案します。
+          お気に入りと履歴を優先して、7日分の主菜・副菜を組み立てます。
+          通常履歴は種別不明のため、候補には週間保存済みの履歴だけを使います。
+          AIは明示ボタンを押した場合だけ不足分の補完に使います。
           予算・調理時間は
           <span className="font-semibold">1日あたり</span>
           の目安です。
         </p>
       </section>
 
-      <SuggestForm loading={loading} onSubmit={handleSubmit} />
+      {favoritesMode && (
+        <section className="rounded-2xl border border-pine/30 bg-pine/5 px-4 py-3 text-sm text-pine">
+          <p className="font-bold">お気に入り優先モード</p>
+          <p className="mt-1 text-pine/80">{FAVORITES_MODE_MESSAGE}</p>
+          <p className="mt-1 text-xs text-pine/70">
+            現在の候補: {candidates.length}件
+          </p>
+        </section>
+      )}
+
+      <SuggestForm
+        loading={loading}
+        onSubmit={handleLocalSubmit}
+        submitLabel="お気に入り・履歴だけで作る（AIなし）"
+        loadingLabel="週間献立を作成中…"
+        secondarySubmitLabel="候補不足分だけAIで補って作る"
+        onSecondarySubmit={handleAiAssistedSubmit}
+      />
 
       {error && (
         <p
@@ -173,6 +264,7 @@ export default function WeeklyPage() {
           startDate={startDate}
           checkedItems={checkedItems}
           saved={saved}
+          candidates={candidates}
           onStartDateChange={handleStartDateChange}
           onCheckedChange={handleCheckedChange}
           onDayReplace={handleDayReplace}
@@ -181,5 +273,19 @@ export default function WeeklyPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function WeeklyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-2xl border border-line bg-card px-5 py-8 text-center text-sm text-muted">
+          週間献立を読み込んでいます…
+        </div>
+      }
+    >
+      <WeeklyPageContent />
+    </Suspense>
   );
 }

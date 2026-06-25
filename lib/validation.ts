@@ -62,8 +62,10 @@ export const updateMealSchema = z
 export const listMealsQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   favorite: z.enum(["true", "false"]).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  limit: z.coerce.number().int().min(1).max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  from: dateString.optional(),
+  to: dateString.optional(),
 });
 
 /** 週間献立の1品の検証 */

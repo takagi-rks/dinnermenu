@@ -43,6 +43,12 @@ export default function RootLayout({
                 履歴
               </Link>
               <Link
+                href="/calendar"
+                className="rounded-full px-2 py-1.5 font-medium text-ink hover:bg-line/60 sm:px-3"
+              >
+                暦
+              </Link>
+              <Link
                 href="/favorites"
                 className="rounded-full px-2 py-1.5 font-medium text-ink hover:bg-line/60 sm:px-3"
               >

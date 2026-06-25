@@ -22,6 +22,9 @@ import {
 import { callAnthropic } from "./anthropic";
 import { callOpenAI } from "./openai";
 import { callGemini } from "./gemini";
+import { AiResponseError } from "./errors";
+
+export { AiResponseError } from "./errors";
 
 export type AiProviderName = "anthropic" | "openai" | "gemini";
 
@@ -36,7 +39,6 @@ export interface AiProvider {
 }
 
 class AiConfigError extends Error {}
-export class AiResponseError extends Error {}
 
 function getEnv(key: string): string {
   const value = process.env[key];

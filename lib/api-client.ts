@@ -46,10 +46,18 @@ export function postSuggestion(body: SuggestionRequest): Promise<MealSuggestion>
 export function fetchMeals(params: {
   q?: string;
   favoriteOnly?: boolean;
+  limit?: number;
+  offset?: number;
+  from?: string;
+  to?: string;
 }): Promise<MealRecord[]> {
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.favoriteOnly) search.set("favorite", "true");
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.offset !== undefined) search.set("offset", String(params.offset));
+  if (params.from) search.set("from", params.from);
+  if (params.to) search.set("to", params.to);
   const qs = search.toString();
   return request<MealRecord[]>(`/api/meals${qs ? `?${qs}` : ""}`);
 }
