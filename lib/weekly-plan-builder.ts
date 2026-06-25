@@ -1,27 +1,36 @@
+import {
+  createAiCandidate,
+  type RecommendedMealCandidate,
+} from "@/lib/meal-recommendation";
 import type {
-  MealRecord,
   SuggestionRequest,
   WeeklyDish,
   WeeklyMealPlan,
 } from "@/lib/types";
-import type { WeeklyFavorite, WeeklyDishKind } from "@/lib/weekly-favorites";
+import type { WeeklyDishKind } from "@/lib/weekly-favorites";
 import { rebuildShoppingList } from "@/lib/weekly-shopping";
 
-export interface WeeklyCandidate {
-  kind: WeeklyDishKind;
-  dish: WeeklyDish;
-  costYen: number | null;
-}
+export type WeeklyCandidate = RecommendedMealCandidate;
 
-const MAIN_MEMO_MARKER = "週間プラン(主菜)";
-const SIDE_MEMO_MARKER = "週間プラン(副菜)";
+export interface WeeklyPlanBuildResult {
+  plan: WeeklyMealPlan;
+  usedCandidates: WeeklyCandidate[];
+  aiUsed: boolean;
+}
 
 function normalize(value: string): string {
   return value.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, "");
 }
 
+export function weeklyCandidateKey(
+  kind: WeeklyDishKind,
+  dishName: string
+): string {
+  return `${kind}:${normalize(dishName)}`;
+}
+
 function candidateKey(candidate: WeeklyCandidate): string {
-  return `${candidate.kind}:${normalize(candidate.dish.dishName)}`;
+  return weeklyCandidateKey(candidate.kind, candidate.dish.dishName);
 }
 
 function isAllowed(candidate: WeeklyCandidate, avoidIngredients: string[]): boolean {
@@ -29,40 +38,6 @@ function isAllowed(candidate: WeeklyCandidate, avoidIngredients: string[]): bool
     [candidate.dish.dishName, ...candidate.dish.keyIngredients].join(" ")
   );
   return !avoidIngredients.some((item) => searchable.includes(normalize(item)));
-}
-
-export function favoritesToCandidates(
-  favorites: WeeklyFavorite[]
-): WeeklyCandidate[] {
-  return favorites
-    .filter((favorite) => favorite.keyIngredients.length > 0)
-    .map((favorite) => ({
-      kind: favorite.kind,
-      dish: {
-        dishName: favorite.dishName,
-        keyIngredients: favorite.keyIngredients,
-      },
-      costYen: null,
-    }));
-}
-
-export function mealsToCandidates(meals: MealRecord[]): WeeklyCandidate[] {
-  const candidates: WeeklyCandidate[] = [];
-  for (const meal of meals) {
-    if (meal.ingredients.length === 0) continue;
-
-    let kind: WeeklyDishKind | null = null;
-    if (meal.memo.includes(MAIN_MEMO_MARKER)) kind = "main";
-    if (meal.memo.includes(SIDE_MEMO_MARKER)) kind = "side";
-    if (!kind) continue;
-
-    candidates.push({
-      kind,
-      dish: { dishName: meal.dishName, keyIngredients: meal.ingredients },
-      costYen: meal.costYen,
-    });
-  }
-  return candidates;
 }
 
 export function uniqueCandidates(
@@ -75,7 +50,12 @@ export function uniqueCandidates(
     const key = candidateKey(candidate);
     if (!unique.has(key)) unique.set(key, candidate);
   }
-  return [...unique.values()];
+  return [...unique.values()].sort(
+    (a, b) =>
+      b.score - a.score ||
+      (a.lastCookedOn ?? "").localeCompare(b.lastCookedOn ?? "") ||
+      a.dish.dishName.localeCompare(b.dish.dishName, "ja")
+  );
 }
 
 export function hasFullWeekCandidates(candidates: WeeklyCandidate[]): boolean {
@@ -85,30 +65,39 @@ export function hasFullWeekCandidates(candidates: WeeklyCandidate[]): boolean {
   );
 }
 
+function generatedToCandidates(
+  generated: WeeklyDish[],
+  kind: WeeklyDishKind
+): WeeklyCandidate[] {
+  return generated.map((dish) => createAiCandidate(kind, dish));
+}
+
 function fillDishes(
   preferred: WeeklyCandidate[],
   generated: WeeklyDish[],
   kind: WeeklyDishKind
 ): WeeklyCandidate[] {
-  const combined: WeeklyCandidate[] = [
+  const combined = [
     ...preferred.filter((candidate) => candidate.kind === kind),
-    ...generated.map((dish) => ({ kind, dish, costYen: null })),
+    ...generatedToCandidates(generated, kind),
   ];
   const unique = new Map<string, WeeklyCandidate>();
   for (const candidate of combined) {
     const key = candidateKey(candidate);
     if (!unique.has(key)) unique.set(key, candidate);
   }
+
   const options = [...unique.values()];
   if (options.length === 0) return [];
+
   return Array.from({ length: 7 }, (_, index) => options[index % options.length]!);
 }
 
-export function buildWeeklyPlan(
+export function buildWeeklyPlanWithMeta(
   candidates: WeeklyCandidate[],
   request: SuggestionRequest,
   generatedPlan?: WeeklyMealPlan
-): WeeklyMealPlan | null {
+): WeeklyPlanBuildResult | null {
   const filtered = uniqueCandidates(candidates, request);
   const mains = fillDishes(
     filtered,
@@ -127,23 +116,36 @@ export function buildWeeklyPlan(
     main: mains[index]!.dish,
     side: sides[index]!.dish,
   }));
-  const knownCost = [...mains, ...sides].reduce(
+  const usedCandidates = [...mains, ...sides];
+  const knownCost = usedCandidates.reduce(
     (total, candidate) => total + (candidate.costYen ?? 0),
     0
   );
 
   return {
-    days,
-    shoppingList: rebuildShoppingList(days, request.availableIngredients),
-    estimatedBudgetYen: knownCost || generatedPlan?.estimatedBudgetYen || 0,
+    plan: {
+      days,
+      shoppingList: rebuildShoppingList(days, request.availableIngredients),
+      estimatedBudgetYen: knownCost || generatedPlan?.estimatedBudgetYen || 0,
+    },
+    usedCandidates,
+    aiUsed: usedCandidates.some((candidate) => candidate.source === "ai"),
   };
 }
 
-export function findLocalDaySuggestion(
+export function buildWeeklyPlan(
+  candidates: WeeklyCandidate[],
+  request: SuggestionRequest,
+  generatedPlan?: WeeklyMealPlan
+): WeeklyMealPlan | null {
+  return buildWeeklyPlanWithMeta(candidates, request, generatedPlan)?.plan ?? null;
+}
+
+export function findRecommendedDaySuggestion(
   candidates: WeeklyCandidate[],
   request: SuggestionRequest,
   excludedDishNames: string[]
-): { main: WeeklyDish; side: WeeklyDish } | null {
+): { main: WeeklyCandidate; side: WeeklyCandidate } | null {
   const normalizedExcluded = excludedDishNames.map(normalize);
   const currentDishes = new Set(normalizedExcluded.slice(-2));
   const otherDishes = new Set(normalizedExcluded.slice(0, -2));
@@ -160,5 +162,14 @@ export function findLocalDaySuggestion(
   const side =
     nonDuplicate.find((candidate) => candidate.kind === "side") ??
     candidatesForChange.find((candidate) => candidate.kind === "side");
-  return main && side ? { main: main.dish, side: side.dish } : null;
+  return main && side ? { main, side } : null;
+}
+
+export function findLocalDaySuggestion(
+  candidates: WeeklyCandidate[],
+  request: SuggestionRequest,
+  excludedDishNames: string[]
+): { main: WeeklyDish; side: WeeklyDish } | null {
+  const result = findRecommendedDaySuggestion(candidates, request, excludedDishNames);
+  return result ? { main: result.main.dish, side: result.side.dish } : null;
 }

@@ -10,9 +10,11 @@ import {
 } from "@/lib/weekly-favorites";
 import { categorizeShoppingList } from "@/lib/weekly-shopping";
 import {
-  findLocalDaySuggestion,
+  findRecommendedDaySuggestion,
+  weeklyCandidateKey,
   type WeeklyCandidate,
 } from "@/lib/weekly-plan-builder";
+import { RECOMMENDATION_REASON_LABELS } from "@/lib/meal-recommendation";
 
 import type {
   CreateMealInput,
@@ -29,6 +31,8 @@ interface Props {
   checkedItems: boolean[];
   saved: boolean;
   candidates: WeeklyCandidate[];
+  dishDetails: WeeklyCandidate[];
+  generationStatus: "AI未使用" | "一部AI補完" | null;
   onStartDateChange: (date: string) => void;
   onCheckedChange: (index: number) => void;
   onDayReplace: (dayIndex: number, updated: DayMealPlan) => void;
@@ -95,16 +99,39 @@ function FavoriteButton({
   );
 }
 
+function ReasonBadges({ candidate }: { candidate: WeeklyCandidate | undefined }) {
+  if (!candidate || candidate.reasons.length === 0) return null;
+
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {candidate.reasons.map((reason) => (
+        <span
+          key={reason}
+          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+            reason === "ai"
+              ? "bg-amber/10 text-amber"
+              : "bg-pine/10 text-pine"
+          }`}
+        >
+          {RECOMMENDATION_REASON_LABELS[reason]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function DishRow({
   label,
   kind,
   dish,
+  candidate,
   favoriteKeys,
   onFavoriteToggle,
 }: {
   label: string;
   kind: WeeklyDishKind;
   dish: WeeklyDish;
+  candidate?: WeeklyCandidate;
   favoriteKeys: Set<string>;
   onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
@@ -138,6 +165,7 @@ function DishRow({
         <p className="mt-1 break-words text-xs leading-relaxed text-muted">
           {dish.keyIngredients.join("、")}
         </p>
+        <ReasonBadges candidate={candidate} />
       </div>
     </div>
   );
@@ -146,11 +174,13 @@ function DishRow({
 function CalendarView({
   days,
   startDate,
+  dishDetails,
   favoriteKeys,
   onFavoriteToggle,
 }: {
   days: DayMealPlan[];
   startDate: string;
+  dishDetails: Map<string, WeeklyCandidate>;
   favoriteKeys: Set<string>;
   onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
@@ -196,6 +226,11 @@ function CalendarView({
                   <p className="mt-0.5 break-words text-sm font-semibold leading-snug">
                     {day.main.dishName}
                   </p>
+                  <ReasonBadges
+                    candidate={dishDetails.get(
+                      weeklyCandidateKey("main", day.main.dishName)
+                    )}
+                  />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -209,6 +244,11 @@ function CalendarView({
                   <p className="mt-0.5 break-words text-sm font-semibold leading-snug">
                     {day.side.dishName}
                   </p>
+                  <ReasonBadges
+                    candidate={dishDetails.get(
+                      weeklyCandidateKey("side", day.side.dishName)
+                    )}
+                  />
                 </div>
               </div>
             </div>
@@ -311,6 +351,7 @@ function DayCard({
   allDays,
   favoriteKeys,
   candidates,
+  dishDetails,
   onReplace,
   onFavoriteToggle,
 }: {
@@ -320,6 +361,7 @@ function DayCard({
   allDays: DayMealPlan[];
   favoriteKeys: Set<string>;
   candidates: WeeklyCandidate[];
+  dishDetails: Map<string, WeeklyCandidate>;
   onReplace: (updated: DayMealPlan) => void;
   onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
@@ -332,7 +374,7 @@ function DayCard({
 
   const handleLocalResuggest = () => {
     setResuggestError(null);
-    const result = findLocalDaySuggestion(candidates, request, [
+    const result = findRecommendedDaySuggestion(candidates, request, [
       ...otherDishes,
       day.main.dishName,
       day.side.dishName,
@@ -343,7 +385,7 @@ function DayCard({
       );
       return;
     }
-    onReplace({ ...day, main: result.main, side: result.side });
+    onReplace({ ...day, main: result.main.dish, side: result.side.dish });
   };
 
   const handleAiResuggest = async () => {
@@ -395,6 +437,7 @@ function DayCard({
         label="主菜"
         kind="main"
         dish={day.main}
+        candidate={dishDetails.get(weeklyCandidateKey("main", day.main.dishName))}
         favoriteKeys={favoriteKeys}
         onFavoriteToggle={onFavoriteToggle}
       />
@@ -402,6 +445,7 @@ function DayCard({
         label="副菜"
         kind="side"
         dish={day.side}
+        candidate={dishDetails.get(weeklyCandidateKey("side", day.side.dishName))}
         favoriteKeys={favoriteKeys}
         onFavoriteToggle={onFavoriteToggle}
       />
@@ -416,6 +460,8 @@ export default function WeeklyMealPlanView({
   checkedItems,
   saved,
   candidates,
+  dishDetails,
+  generationStatus,
   onStartDateChange,
   onCheckedChange,
   onDayReplace,
@@ -426,6 +472,17 @@ export default function WeeklyMealPlanView({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [planView, setPlanView] = useState<"calendar" | "list">("calendar");
   const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(() => new Set());
+
+  const dishDetailMap = useMemo(() => {
+    const map = new Map<string, WeeklyCandidate>();
+    for (const candidate of candidates) {
+      map.set(weeklyCandidateKey(candidate.kind, candidate.dish.dishName), candidate);
+    }
+    for (const candidate of dishDetails) {
+      map.set(weeklyCandidateKey(candidate.kind, candidate.dish.dishName), candidate);
+    }
+    return map;
+  }, [candidates, dishDetails]);
 
   useEffect(() => {
     setFavoriteKeys(new Set(loadWeeklyFavorites()));
@@ -480,6 +537,11 @@ export default function WeeklyMealPlanView({
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-line bg-card p-2 shadow-sm sm:p-3">
+        {generationStatus && (
+          <div className="mb-2 rounded-xl bg-pine/5 px-3 py-2 text-sm font-bold text-pine">
+            {generationStatus}
+          </div>
+        )}
         <div className="flex items-center rounded-xl bg-paper p-1">
           <button
             type="button"
@@ -510,6 +572,7 @@ export default function WeeklyMealPlanView({
         <CalendarView
           days={plan.days}
           startDate={startDate}
+          dishDetails={dishDetailMap}
           favoriteKeys={favoriteKeys}
           onFavoriteToggle={handleFavoriteToggle}
         />
@@ -537,6 +600,7 @@ export default function WeeklyMealPlanView({
                 allDays={plan.days}
                 favoriteKeys={favoriteKeys}
                 candidates={candidates}
+                dishDetails={dishDetailMap}
                 onReplace={(updated) => onDayReplace(day.dayIndex, updated)}
                 onFavoriteToggle={handleFavoriteToggle}
               />

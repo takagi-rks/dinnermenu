@@ -9,15 +9,15 @@ import {
   fetchMeals,
   postWeeklySuggestion,
 } from "@/lib/api-client";
+import { buildRecommendedMealCandidates } from "@/lib/meal-recommendation";
 import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
 import { loadWeeklyFavoriteEntries } from "@/lib/weekly-favorites";
 import {
-  buildWeeklyPlan,
-  favoritesToCandidates,
+  buildWeeklyPlanWithMeta,
   hasFullWeekCandidates,
-  mealsToCandidates,
   uniqueCandidates,
   type WeeklyCandidate,
+  type WeeklyPlanBuildResult,
 } from "@/lib/weekly-plan-builder";
 import { carryCheckedItems, rebuildShoppingList } from "@/lib/weekly-shopping";
 import type { DayMealPlan, SuggestionRequest, WeeklyMealPlan } from "@/lib/types";
@@ -27,6 +27,8 @@ const RESTORED_PLAN_MESSAGE =
   "AI生成に失敗したため、前回成功した週間献立を表示しました";
 const FAVORITES_MODE_MESSAGE =
   "お気に入りを最優先し、不足分は週間保存済みの履歴から補完します。足りない場合だけAI補完ボタンを使えます。";
+
+type GenerationStatus = "AI未使用" | "一部AI補完";
 
 /** ローカルタイムの今日をYYYY-MM-DD で返す */
 function todayString(): string {
@@ -50,14 +52,16 @@ function WeeklyPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [candidates, setCandidates] = useState<WeeklyCandidate[]>([]);
+  const [dishDetails, setDishDetails] = useState<WeeklyCandidate[]>([]);
+  const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
 
   const loadCandidates = useCallback(async (): Promise<WeeklyCandidate[]> => {
-    const favorites = favoritesToCandidates(loadWeeklyFavoriteEntries());
+    const favorites = loadWeeklyFavoriteEntries();
     try {
-      const meals = await fetchMeals({ limit: 100 });
-      return [...favorites, ...mealsToCandidates(meals)];
+      const meals = await fetchMeals({ limit: 500 });
+      return buildRecommendedMealCandidates(meals, favorites);
     } catch {
-      return favorites;
+      return buildRecommendedMealCandidates([], favorites);
     }
   }, []);
 
@@ -85,15 +89,17 @@ function WeeklyPageContent() {
   }, [hydrated, plan, request, startDate, checkedItems, saved]);
 
   const showPlan = (
-    result: WeeklyMealPlan,
+    result: WeeklyPlanBuildResult,
     req: SuggestionRequest,
     availableCandidates: WeeklyCandidate[]
   ) => {
-    setPlan(result);
+    setPlan(result.plan);
     setRequest(req);
     setCandidates(availableCandidates);
+    setDishDetails(result.usedCandidates);
+    setGenerationStatus(result.aiUsed ? "一部AI補完" : "AI未使用");
     setStartDate(todayString());
-    setCheckedItems(new Array<boolean>(result.shoppingList.length).fill(false));
+    setCheckedItems(new Array<boolean>(result.plan.shoppingList.length).fill(false));
     setSaved(false);
   };
 
@@ -102,7 +108,7 @@ function WeeklyPageContent() {
     setError(null);
     try {
       const availableCandidates = await loadCandidates();
-      const result = buildWeeklyPlan(availableCandidates, req);
+      const result = buildWeeklyPlanWithMeta(availableCandidates, req);
       if (!result) {
         setError(
           "AIなしで作成するには、食材情報のある主菜と副菜をそれぞれ1品以上お気に入りまたは週間保存済みの履歴に登録してください。"
@@ -127,9 +133,11 @@ function WeeklyPageContent() {
       const generated = hasFullWeekCandidates(filtered)
         ? undefined
         : await postWeeklySuggestion(req);
-      const result = buildWeeklyPlan(availableCandidates, req, generated);
+      const result = buildWeeklyPlanWithMeta(availableCandidates, req, generated);
       if (!result) {
-        throw new Error("週間献立の作成に必要な候補を用意できませんでした");
+        throw new Error(
+          "履歴・お気に入りの候補が少なく、AI補完でも週間献立を作成できませんでした"
+        );
       }
       showPlan(result, req, availableCandidates);
     } catch (err) {
@@ -144,6 +152,8 @@ function WeeklyPageContent() {
           setStartDate(stored.startDate);
           setCheckedItems(stored.checkedItems);
           setSaved(stored.saved);
+          setDishDetails([]);
+          setGenerationStatus(null);
           setError(RESTORED_PLAN_MESSAGE);
           return;
         }
@@ -207,6 +217,8 @@ function WeeklyPageContent() {
     setCheckedItems([]);
     setSaved(false);
     setCandidates([]);
+    setDishDetails([]);
+    setGenerationStatus(null);
   }, []);
 
   return (
@@ -265,6 +277,8 @@ function WeeklyPageContent() {
           checkedItems={checkedItems}
           saved={saved}
           candidates={candidates}
+          dishDetails={dishDetails}
+          generationStatus={generationStatus}
           onStartDateChange={handleStartDateChange}
           onCheckedChange={handleCheckedChange}
           onDayReplace={handleDayReplace}

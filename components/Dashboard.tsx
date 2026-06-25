@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { fetchMeals } from "@/lib/api-client";
 import { loadPlan, type PlanStorage } from "@/lib/plan-storage";
 import { loadWeeklyFavoriteEntries } from "@/lib/weekly-favorites";
@@ -60,8 +61,8 @@ function DashboardCard({
   action,
 }: {
   title: string;
-  children: React.ReactNode;
-  action?: React.ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
