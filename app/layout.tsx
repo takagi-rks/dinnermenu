@@ -28,7 +28,7 @@ export default function RootLayout({
                 href="/"
                 className="rounded-full px-0.5 py-2 font-medium text-ink hover:bg-line/60 sm:px-3"
               >
-                提案
+                1日
               </Link>
               <Link
                 href="/weekly"
@@ -46,7 +46,7 @@ export default function RootLayout({
                 href="/calendar"
                 className="rounded-full px-0.5 py-2 font-medium text-ink hover:bg-line/60 sm:px-3"
               >
-                暦
+                カレンダー
               </Link>
               <Link
                 href="/favorites"
