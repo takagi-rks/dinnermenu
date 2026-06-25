@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Dashboard from "@/components/Dashboard";
 import SuggestForm from "@/components/SuggestForm";
 import SuggestionResult from "@/components/SuggestionResult";
 import { postSuggestion } from "@/lib/api-client";
@@ -31,34 +32,38 @@ export default function HomePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <section>
-        <h1 className="text-xl font-bold">今夜、何にする?</h1>
-        <p className="mt-1 text-sm text-muted">
-          条件を入れると、AIが冷蔵庫の中身に合わせて一皿を提案します。
-        </p>
-      </section>
+    <div className="space-y-8">
+      <Dashboard />
 
-      <SuggestForm loading={loading} onSubmit={handleSubmit} />
-
-      {error && (
-        <p
-          role="alert"
-          className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
-        >
-          {error}
-        </p>
-      )}
-
-      {loading && (
-        <div className="rounded-2xl border border-line bg-card px-5 py-8 text-center text-sm text-muted">
-          献立を考えています…
+      <section className="space-y-6 border-t border-line pt-6">
+        <div>
+          <h2 className="text-xl font-bold">今夜、何にする?</h2>
+          <p className="mt-1 text-sm text-muted">
+            条件を入れると、AIが冷蔵庫の中身に合わせて一皿を提案します。
+          </p>
         </div>
-      )}
 
-      {!loading && suggestion && (
-        <SuggestionResult suggestion={suggestion} onRetry={handleRetry} />
-      )}
+        <SuggestForm loading={loading} onSubmit={handleSubmit} />
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
+            {error}
+          </p>
+        )}
+
+        {loading && (
+          <div className="rounded-2xl border border-line bg-card px-5 py-8 text-center text-sm text-muted">
+            献立を考えています…
+          </div>
+        )}
+
+        {!loading && suggestion && (
+          <SuggestionResult suggestion={suggestion} onRetry={handleRetry} />
+        )}
+      </section>
     </div>
   );
 }
