@@ -54,16 +54,16 @@ export default function CostSummaryPanel() {
       )}
 
       {/* 月別一覧 */}
-      <ul className="space-y-1.5">
+      <ul className="space-y-2">
         {visible.map((s) => (
           <li
             key={s.yearMonth}
-            className="flex items-center justify-between text-sm"
+            className="space-y-0.5 rounded-lg bg-paper px-3 py-2 text-sm min-[380px]:flex min-[380px]:items-center min-[380px]:justify-between min-[380px]:space-y-0"
           >
             <span className="text-muted">
               {s.yearMonth.replace("-", "年")}月
             </span>
-            <span className="font-semibold">
+            <span className="block font-semibold min-[380px]:text-right">
               {s.totalCostYen.toLocaleString()}円
               <span className="ml-1.5 text-xs font-normal text-muted">
                 ({s.recordCount}件)
@@ -77,7 +77,7 @@ export default function CostSummaryPanel() {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-2 text-sm font-semibold text-pine"
+          className="mt-3 min-h-11 rounded-lg px-1 text-sm font-semibold text-pine"
         >
           {expanded ? "閉じる" : `過去の月も見る(全${summaries.length}か月)`}
         </button>

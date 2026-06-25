@@ -54,12 +54,12 @@ export default function SuggestForm({
   });
 
   const inputClass =
-    "w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20";
+    "w-full rounded-xl border border-line bg-card px-3 py-3 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20";
   const labelClass = "mb-1.5 block text-sm font-semibold text-ink";
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-3">
         <div>
           <label htmlFor="servings" className={labelClass}>
             人数
@@ -152,7 +152,7 @@ export default function SuggestForm({
               key={preset}
               type="button"
               onClick={() => setMood(preset)}
-              className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+              className={`min-h-11 rounded-full border px-3 py-2 text-sm transition-colors ${
                 mood === preset
                   ? "border-pine bg-pine text-white"
                   : "border-line bg-card text-ink hover:border-pine/50"
@@ -177,7 +177,7 @@ export default function SuggestForm({
           type="button"
           onClick={() => onSubmit(createRequest())}
           disabled={loading}
-          className="w-full rounded-xl bg-pine py-3.5 text-base font-bold text-white transition-colors hover:bg-pine-dark disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-12 w-full rounded-xl bg-pine px-3 py-3.5 text-base font-bold leading-snug text-white transition-colors hover:bg-pine-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? loadingLabel : submitLabel}
         </button>
@@ -186,7 +186,7 @@ export default function SuggestForm({
             type="button"
             onClick={() => onSecondarySubmit(createRequest())}
             disabled={loading}
-            className="w-full rounded-xl border border-pine bg-card py-3 text-sm font-bold text-pine transition-colors hover:bg-pine/5 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-12 w-full rounded-xl border border-pine bg-card px-3 py-3 text-sm font-bold leading-snug text-pine transition-colors hover:bg-pine/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {secondarySubmitLabel}
           </button>

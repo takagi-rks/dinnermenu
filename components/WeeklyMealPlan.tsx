@@ -86,7 +86,7 @@ function FavoriteButton({
       onClick={onToggle}
       aria-pressed={active}
       aria-label={active ? `${dishName}のお気に入りを解除` : `${dishName}をお気に入りに追加`}
-      className={`shrink-0 text-xl leading-none transition-transform active:scale-90 ${
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl leading-none transition-transform active:scale-90 ${
         active ? "text-amber" : "text-line hover:text-amber"
       }`}
     >
@@ -111,13 +111,15 @@ function DishRow({
   const favorite = favoriteKeys.has(weeklyFavoriteKey(kind, dish));
 
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-2.5 sm:gap-3">
       <span className="mt-0.5 shrink-0 rounded-md bg-pine/10 px-2 py-0.5 text-xs font-bold text-pine">
         {label}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-bold">{dish.dishName}</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <p className="min-w-0 flex-1 basis-full break-words text-sm font-bold leading-snug min-[380px]:basis-0">
+            {dish.dishName}
+          </p>
           <FavoriteButton
             active={favorite}
             dishName={dish.dishName}
@@ -128,12 +130,12 @@ function DishRow({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${dish.dishName}のレシピ動画をYouTubeで検索`}
-            className="shrink-0 rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-100"
+            className="flex min-h-10 shrink-0 items-center rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
           >
             ▶ 動画
           </a>
         </div>
-        <p className="mt-0.5 text-xs text-muted">
+        <p className="mt-1 break-words text-xs leading-relaxed text-muted">
           {dish.keyIngredients.join("、")}
         </p>
       </div>
@@ -153,7 +155,7 @@ function CalendarView({
   onFavoriteToggle: (kind: WeeklyDishKind, dish: WeeklyDish) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+    <section className="rounded-2xl border border-line bg-card p-3 shadow-sm sm:p-4">
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-muted">カレンダー表示</p>
@@ -191,7 +193,7 @@ function CalendarView({
                       onToggle={() => onFavoriteToggle("main", day.main)}
                     />
                   </div>
-                  <p className="mt-0.5 text-sm font-semibold leading-snug">
+                  <p className="mt-0.5 break-words text-sm font-semibold leading-snug">
                     {day.main.dishName}
                   </p>
                 </div>
@@ -204,7 +206,7 @@ function CalendarView({
                       onToggle={() => onFavoriteToggle("side", day.side)}
                     />
                   </div>
-                  <p className="mt-0.5 text-sm font-semibold leading-snug">
+                  <p className="mt-0.5 break-words text-sm font-semibold leading-snug">
                     {day.side.dishName}
                   </p>
                 </div>
@@ -238,10 +240,10 @@ function ShoppingMode({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className="bg-pine px-5 py-4 text-white">
+      <div className="bg-pine px-4 py-4 text-white sm:px-5">
         <p className="text-xs opacity-80">スーパー買い物モード</p>
         <div className="mt-1 flex items-end justify-between gap-3">
-          <h3 className="text-lg font-bold">カテゴリ別チェックリスト</h3>
+          <h3 className="text-base font-bold sm:text-lg">カテゴリ別チェックリスト</h3>
           <p className="shrink-0 text-sm font-bold">
             {checkedCount}/{shoppingList.length}
           </p>
@@ -255,7 +257,7 @@ function ShoppingMode({
           ).length;
 
           return (
-            <section key={category.id} className="px-4 py-4">
+            <section key={category.id} className="px-3 py-4 sm:px-4">
               <div className="mb-2 flex items-center justify-between">
                 <h4 className="text-sm font-bold text-pine">{category.label}</h4>
                 <p className="text-xs font-semibold text-muted">
@@ -269,7 +271,7 @@ function ShoppingMode({
                     <li key={`${originalIndex}-${item}`}>
                       <label
                         htmlFor={`shop-mode-${originalIndex}`}
-                        className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 transition-colors ${
+                        className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${
                           checked
                             ? "border-line bg-paper text-muted"
                             : "border-line bg-card text-ink hover:border-pine/40"
@@ -283,7 +285,7 @@ function ShoppingMode({
                           className="h-5 w-5 shrink-0 accent-pine"
                         />
                         <span
-                          className={`text-base font-semibold leading-snug ${
+                          className={`min-w-0 break-words text-base font-semibold leading-snug ${
                             checked ? "line-through" : ""
                           }`}
                         >
@@ -360,17 +362,17 @@ function DayCard({
   };
 
   return (
-    <li className="space-y-2.5 px-5 py-4">
-      <div className="flex items-center justify-between">
+    <li className="space-y-3 px-4 py-4 sm:px-5">
+      <div className="space-y-2 min-[420px]:flex min-[420px]:items-center min-[420px]:justify-between min-[420px]:gap-3 min-[420px]:space-y-0">
         <p className="text-xs font-bold text-muted">
           {day.dayIndex}日目({formatShort(date)})
         </p>
-        <div className="flex flex-wrap justify-end gap-1.5">
+        <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 min-[420px]:flex min-[420px]:flex-wrap min-[420px]:justify-end">
           <button
             type="button"
             onClick={handleLocalResuggest}
             disabled={resuggesting}
-            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-pine/50 disabled:opacity-40"
+            className="min-h-11 rounded-lg border border-line px-3 py-2 text-xs font-semibold leading-snug text-ink transition-colors hover:border-pine/50 disabled:opacity-40"
           >
             お気に入り・履歴から変更
           </button>
@@ -378,7 +380,7 @@ function DayCard({
             type="button"
             onClick={handleAiResuggest}
             disabled={resuggesting}
-            className="rounded-lg border border-pine px-2.5 py-1 text-xs font-semibold text-pine transition-colors hover:bg-pine/5 disabled:opacity-40"
+            className="min-h-11 rounded-lg border border-pine px-3 py-2 text-xs font-semibold leading-snug text-pine transition-colors hover:bg-pine/5 disabled:opacity-40"
           >
             {resuggesting ? "AI考案中…" : "AIで再提案"}
           </button>
@@ -477,12 +479,12 @@ export default function WeeklyMealPlanView({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-line bg-card p-3 shadow-sm">
+      <section className="rounded-2xl border border-line bg-card p-2 shadow-sm sm:p-3">
         <div className="flex items-center rounded-xl bg-paper p-1">
           <button
             type="button"
             onClick={() => setPlanView("calendar")}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+            className={`min-h-11 flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
               planView === "calendar"
                 ? "bg-pine text-white"
                 : "text-muted hover:bg-line/60"
@@ -493,7 +495,7 @@ export default function WeeklyMealPlanView({
           <button
             type="button"
             onClick={() => setPlanView("list")}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+            className={`min-h-11 flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
               planView === "list"
                 ? "bg-pine text-white"
                 : "text-muted hover:bg-line/60"
@@ -515,7 +517,7 @@ export default function WeeklyMealPlanView({
 
       {planView === "list" && (
         <article className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-          <div className="bg-pine px-5 py-4 text-white">
+          <div className="bg-pine px-4 py-4 text-white sm:px-5">
             <p className="text-xs opacity-80">1週間の献立プラン</p>
             <h2 className="text-lg font-bold">
               {formatShort(startDate)} 〜 {formatShort(addDays(startDate, 6))}
@@ -550,8 +552,8 @@ export default function WeeklyMealPlanView({
       />
 
       {/* 保存・操作パネル */}
-      <section className="space-y-3 rounded-2xl border border-line bg-card p-5 shadow-sm">
-        <div className="flex items-center gap-3">
+      <section className="space-y-3 rounded-2xl border border-line bg-card p-4 shadow-sm sm:p-5">
+        <div className="space-y-1.5 min-[380px]:flex min-[380px]:items-center min-[380px]:gap-3 min-[380px]:space-y-0">
           <label
             htmlFor="week-start"
             className="shrink-0 text-sm font-semibold text-ink"
@@ -564,7 +566,7 @@ export default function WeeklyMealPlanView({
             value={startDate}
             onChange={(e) => onStartDateChange(e.target.value)}
             disabled={saved}
-            className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20"
+            className="w-full rounded-xl border border-line bg-paper px-3 py-3 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20"
           />
         </div>
 
@@ -574,12 +576,12 @@ export default function WeeklyMealPlanView({
           </p>
         )}
 
-        <div className="flex gap-3">
+        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-[1fr_auto] min-[380px]:gap-3">
           <button
             type="button"
             onClick={handleSaveAll}
             disabled={saving || saved || !startDate}
-            className="flex-1 rounded-xl bg-pine py-3 text-sm font-bold text-white transition-colors hover:bg-pine-dark disabled:opacity-50"
+            className="min-h-12 rounded-xl bg-pine px-3 py-3 text-sm font-bold leading-snug text-white transition-colors hover:bg-pine-dark disabled:opacity-50"
           >
             {saved
               ? "14品を履歴に保存しました"
@@ -590,7 +592,7 @@ export default function WeeklyMealPlanView({
           <button
             type="button"
             onClick={onClear}
-            className="rounded-xl border border-line bg-card px-4 py-3 text-sm font-semibold text-red-600 transition-colors hover:border-red-200 hover:bg-red-50"
+            className="min-h-12 rounded-xl border border-line bg-card px-4 py-3 text-sm font-semibold text-red-600 transition-colors hover:border-red-200 hover:bg-red-50"
           >
             クリア
           </button>

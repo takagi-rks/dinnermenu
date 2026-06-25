@@ -40,9 +40,9 @@ export default function DishStatsPanel() {
         {visible.map((stat) => (
           <li
             key={stat.dishName}
-            className="flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-sm"
+            className="flex min-h-10 max-w-full items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-2 text-sm"
           >
-            <span className="max-w-40 truncate">{stat.dishName}</span>
+            <span className="min-w-0 max-w-40 truncate">{stat.dishName}</span>
             <span className="shrink-0 rounded-full bg-pine px-1.5 py-0.5 text-xs font-bold text-white">
               ×{stat.count}
             </span>
@@ -53,7 +53,7 @@ export default function DishStatsPanel() {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-2 text-sm font-semibold text-pine"
+          className="mt-3 min-h-11 rounded-lg px-1 text-sm font-semibold text-pine"
         >
           {expanded ? "閉じる" : `すべて見る(${stats.length}件)`}
         </button>

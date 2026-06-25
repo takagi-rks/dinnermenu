@@ -76,12 +76,12 @@ export default function MealCalendar() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+      <section className="rounded-2xl border border-line bg-card p-3 shadow-sm sm:p-4">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => moveMonth(-1)}
-            className="rounded-lg border border-line px-3 py-2 text-sm font-bold"
+            className="min-h-11 min-w-11 rounded-lg border border-line px-3 py-2 text-sm font-bold"
             aria-label="前の月"
           >
             ←
@@ -97,7 +97,7 @@ export default function MealCalendar() {
           <button
             type="button"
             onClick={() => moveMonth(1)}
-            className="rounded-lg border border-line px-3 py-2 text-sm font-bold"
+            className="min-h-11 min-w-11 rounded-lg border border-line px-3 py-2 text-sm font-bold"
             aria-label="次の月"
           >
             →
@@ -114,7 +114,7 @@ export default function MealCalendar() {
       <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
         <div className="grid grid-cols-7 border-b border-line bg-paper">
           {WEEKDAYS.map((weekday) => (
-            <div key={weekday} className="px-1 py-2 text-center text-xs font-bold text-muted">
+            <div key={weekday} className="px-0.5 py-2 text-center text-[11px] font-bold text-muted sm:px-1 sm:text-xs">
               {weekday}
             </div>
           ))}
@@ -125,7 +125,7 @@ export default function MealCalendar() {
           <div className="grid grid-cols-7">
             {cells.map((day, index) => {
               if (day === null) {
-                return <div key={`empty-${index}`} className="min-h-24 border-b border-r border-line bg-paper/50" />;
+                return <div key={`empty-${index}`} className="min-h-20 border-b border-r border-line bg-paper/50 sm:min-h-24" />;
               }
               const date = dateString(year, month, day);
               const dailyMeals = mealsByDate.get(date) ?? [];
@@ -134,25 +134,25 @@ export default function MealCalendar() {
                 0
               );
               return (
-                <div key={date} className="min-h-24 border-b border-r border-line p-1.5">
-                  <p className="text-xs font-bold">{day}</p>
-                  <ul className="mt-1 space-y-1">
+                <div key={date} className="min-h-20 min-w-0 border-b border-r border-line p-1 sm:min-h-24 sm:p-1.5">
+                  <p className="text-[11px] font-bold sm:text-xs">{day}</p>
+                  <ul className="mt-1 space-y-0.5 sm:space-y-1">
                     {dailyMeals.map((meal) => {
                       const kind = mealKind(meal);
                       return (
-                        <li key={meal.id} className="rounded bg-paper px-1 py-0.5 text-[10px] leading-tight">
+                        <li key={meal.id} className="min-w-0 overflow-hidden rounded bg-paper px-0.5 py-0.5 text-[9px] leading-tight sm:px-1 sm:text-[10px]">
                           {kind && (
                             <span className={kind === "main" ? "text-pine" : "text-amber"}>
                               {kind === "main" ? "主 " : "副 "}
                             </span>
                           )}
-                          {meal.dishName}
+                          <span className="break-words">{meal.dishName}</span>
                         </li>
                       );
                     })}
                   </ul>
                   {dailyTotal > 0 && (
-                    <p className="mt-1 text-[10px] font-bold text-pine">
+                    <p className="mt-1 break-words text-[9px] font-bold leading-tight text-pine sm:text-[10px]">
                       計 {dailyTotal.toLocaleString()}円
                     </p>
                   )}

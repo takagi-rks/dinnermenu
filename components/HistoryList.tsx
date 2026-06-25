@@ -56,20 +56,20 @@ export default function HistoryList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-[1fr_auto]">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="料理名・メモで検索"
           aria-label="履歴を検索"
-          className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20"
+          className="w-full rounded-xl border border-line bg-card px-3 py-3 text-base focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20"
         />
         <button
           type="button"
           onClick={() => setFavoriteOnly((v) => !v)}
           aria-pressed={favoriteOnly}
-          className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
+          className={`min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${
             favoriteOnly
               ? "border-amber bg-amber text-white"
               : "border-line bg-card text-ink"

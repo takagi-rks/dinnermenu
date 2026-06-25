@@ -98,7 +98,7 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs text-muted">{formatDate(meal.cookedOn)}</p>
-          <h3 className="truncate text-base font-bold">{meal.dishName}</h3>
+          <h3 className="break-words text-base font-bold leading-snug">{meal.dishName}</h3>
         </div>
         <button
           type="button"
@@ -106,7 +106,7 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
           disabled={busy}
           aria-pressed={meal.isFavorite}
           aria-label={meal.isFavorite ? "お気に入りを解除" : "お気に入りに追加"}
-          className={`shrink-0 text-2xl leading-none transition-transform active:scale-90 ${
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl leading-none transition-transform active:scale-90 ${
             meal.isFavorite ? "text-amber" : "text-line"
           }`}
         >
@@ -122,7 +122,7 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
             onClick={() => setRating(n)}
             disabled={busy}
             aria-label={`評価 ${n}`}
-            className={`text-lg leading-none ${
+            className={`flex h-9 w-9 items-center justify-center rounded-full text-lg leading-none ${
               meal.rating !== null && n <= meal.rating ? "text-pine" : "text-line"
             }`}
           >
@@ -141,7 +141,7 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="mt-3 text-sm font-semibold text-pine"
+        className="mt-3 min-h-11 rounded-lg px-1 text-sm font-semibold text-pine"
       >
         {expanded ? "閉じる" : "詳細・メモを開く"}
       </button>
@@ -160,19 +160,19 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
                 placeholder="料理名"
                 className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm focus:border-pine focus:outline-none"
               />
-              <div className="flex items-center gap-3">
+              <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-[1fr_auto] min-[380px]:items-center min-[380px]:gap-3">
                 <input
                   type="date"
                   value={dateDraft}
                   onChange={(e) => setDateDraft(e.target.value)}
                   aria-label="作った日"
-                  className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm focus:border-pine focus:outline-none"
+                  className="w-full rounded-xl border border-line bg-paper px-3 py-3 text-base focus:border-pine focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={saveBasicInfo}
                   disabled={busy || !basicInfoDirty || !basicInfoValid}
-                  className="shrink-0 rounded-lg bg-pine px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+                  className="min-h-11 rounded-lg bg-pine px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
                 >
                   保存
                 </button>
@@ -183,14 +183,14 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
           {meal.ingredients.length > 0 && (
             <section>
               <h4 className="mb-1 text-xs font-bold text-pine">食材</h4>
-              <p className="text-sm">{meal.ingredients.join("、")}</p>
+              <p className="break-words text-sm leading-relaxed">{meal.ingredients.join("、")}</p>
             </section>
           )}
 
           {meal.steps.length > 0 && (
             <section>
               <h4 className="mb-1 text-xs font-bold text-pine">手順</h4>
-              <ol className="list-decimal space-y-1 pl-5 text-sm">
+              <ol className="list-decimal space-y-1 pl-5 text-sm leading-relaxed">
                 {meal.steps.map((step) => (
                   <li key={step}>{step}</li>
                 ))}
@@ -200,7 +200,7 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
 
           <section>
             <h4 className="mb-1 text-xs font-bold text-pine">実際の食費</h4>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-[1fr_auto] gap-2 min-[380px]:grid-cols-[1fr_auto_auto] min-[380px]:items-center">
               <input
                 type="number"
                 inputMode="numeric"
@@ -210,14 +210,14 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
                 max={100000}
                 placeholder="例: 850"
                 aria-label="実際の食費(円)"
-                className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm focus:border-pine focus:outline-none"
+                className="w-full rounded-xl border border-line bg-paper px-3 py-3 text-base focus:border-pine focus:outline-none"
               />
-              <span className="shrink-0 text-sm text-muted">円</span>
+              <span className="self-center text-sm text-muted">円</span>
               <button
                 type="button"
                 onClick={saveCost}
                 disabled={busy || !costDirty || !costValid}
-                className="shrink-0 rounded-lg bg-pine px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+                className="col-span-2 min-h-11 rounded-lg bg-pine px-4 py-2 text-sm font-bold text-white disabled:opacity-40 min-[380px]:col-span-1"
               >
                 保存
               </button>
@@ -239,12 +239,12 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
               placeholder="味の感想、次回の改善点など"
               className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm focus:border-pine focus:outline-none"
             />
-            <div className="mt-2 flex justify-between">
+            <div className="mt-2 grid grid-cols-1 gap-2 min-[380px]:grid-cols-[1fr_auto] min-[380px]:items-center">
               <button
                 type="button"
                 onClick={saveMemo}
                 disabled={busy || memoDraft.trim() === meal.memo}
-                className="rounded-lg bg-pine px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+                className="min-h-11 rounded-lg bg-pine px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
                 メモを保存
               </button>
@@ -252,7 +252,7 @@ export default function MealCard({ meal, onChange, onDelete }: Props) {
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="rounded-lg px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                className="min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
               >
                 削除
               </button>

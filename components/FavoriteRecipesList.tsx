@@ -53,7 +53,7 @@ export default function FavoriteRecipesList() {
         </div>
         <Link
           href="/weekly?favorites=1"
-          className="block rounded-xl bg-pine px-4 py-3 text-center text-sm font-bold text-white hover:bg-pine-dark"
+          className="block min-h-12 rounded-xl bg-pine px-4 py-3 text-center text-sm font-bold leading-snug text-white hover:bg-pine-dark"
         >
           履歴から週間献立を作る
         </Link>
@@ -65,7 +65,7 @@ export default function FavoriteRecipesList() {
     <div className="space-y-4">
       <Link
         href="/weekly?favorites=1"
-        className="block rounded-xl bg-pine px-4 py-3 text-center text-sm font-bold text-white hover:bg-pine-dark"
+        className="block min-h-12 rounded-xl bg-pine px-4 py-3 text-center text-sm font-bold leading-snug text-white hover:bg-pine-dark"
       >
         お気に入り・履歴から週間献立を作る
       </Link>
@@ -73,9 +73,9 @@ export default function FavoriteRecipesList() {
         {favorites.map((favorite) => (
         <li
           key={favorite.key}
-          className="rounded-2xl border border-line bg-card p-5 shadow-sm"
+          className="rounded-2xl border border-line bg-card p-4 shadow-sm sm:p-5"
         >
-          <div className="flex items-start justify-between gap-3">
+          <div className="space-y-3 min-[380px]:flex min-[380px]:items-start min-[380px]:justify-between min-[380px]:gap-3 min-[380px]:space-y-0">
             <div className="min-w-0">
               <span
                 className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${
@@ -86,11 +86,11 @@ export default function FavoriteRecipesList() {
               >
                 {favorite.kind === "main" ? "主菜" : "副菜"}
               </span>
-              <h2 className="mt-2 text-base font-bold text-ink">
+              <h2 className="mt-2 break-words text-base font-bold leading-snug text-ink">
                 {favorite.dishName}
               </h2>
               {favorite.keyIngredients.length > 0 && (
-                <p className="mt-1 text-sm text-muted">
+                <p className="mt-1 break-words text-sm leading-relaxed text-muted">
                   {favorite.keyIngredients.join("、")}
                 </p>
               )}
@@ -99,7 +99,7 @@ export default function FavoriteRecipesList() {
               type="button"
               onClick={() => handleRemove(favorite.key)}
               aria-label={`${favorite.dishName}のお気に入りを解除`}
-              className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:border-red-200 hover:bg-red-50"
+              className="min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-200 hover:bg-red-50 min-[380px]:shrink-0"
             >
               解除
             </button>
@@ -109,7 +109,7 @@ export default function FavoriteRecipesList() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${favorite.dishName}のレシピ動画をYouTubeで検索`}
-            className="mt-4 inline-block rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100"
+            className="mt-4 inline-flex min-h-11 max-w-full items-center rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold leading-snug text-red-600 hover:bg-red-100"
           >
             ▶ YouTubeでレシピを検索
           </a>
