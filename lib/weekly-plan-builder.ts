@@ -32,8 +32,15 @@ export interface WeeklyCandidateShortage {
   side: number;
 }
 
+export interface WeeklyFixedDaySelection {
+  dayIndex: number;
+  main?: WeeklyCandidate;
+  side?: WeeklyCandidate;
+}
+
 export interface WeeklyPlanBuildOptions {
   allowRepeat?: boolean;
+  fixedSelections?: WeeklyFixedDaySelection[];
 }
 
 function normalize(value: string): string {
@@ -49,6 +56,16 @@ export function weeklyCandidateKey(
 
 function candidateKey(candidate: WeeklyCandidate): string {
   return weeklyCandidateKey(candidate.kind, candidate.dish.dishName);
+}
+
+export function weeklyCandidateSelectionKey(candidate: WeeklyCandidate): string {
+  const ingredients = candidate.dish.keyIngredients.map(normalize).sort().join(",");
+  return [
+    candidate.source,
+    candidate.kind,
+    normalize(candidate.dish.dishName),
+    ingredients,
+  ].join(":");
 }
 
 function sourcePriority(candidate: WeeklyCandidate): number {
@@ -99,12 +116,33 @@ export function hasFullWeekCandidates(candidates: WeeklyCandidate[]): boolean {
 
 export function getWeeklyCandidateShortage(
   candidates: WeeklyCandidate[],
-  request: SuggestionRequest
+  request: SuggestionRequest,
+  fixedSelections: WeeklyFixedDaySelection[] = []
 ): WeeklyCandidateShortage {
   const filtered = uniqueCandidates(candidates, request);
+  const fixedMainKeys = new Set(
+    fixedSelections
+      .map((selection) => selection.main)
+      .filter((candidate): candidate is WeeklyCandidate => Boolean(candidate))
+      .map(candidateKey)
+  );
+  const fixedSideKeys = new Set(
+    fixedSelections
+      .map((selection) => selection.side)
+      .filter((candidate): candidate is WeeklyCandidate => Boolean(candidate))
+      .map(candidateKey)
+  );
+  const fixedMainCount = fixedSelections.filter((selection) => selection.main).length;
+  const fixedSideCount = fixedSelections.filter((selection) => selection.side).length;
+  const availableMains = filtered.filter(
+    (candidate) => candidate.kind === "main" && !fixedMainKeys.has(candidateKey(candidate))
+  ).length;
+  const availableSides = filtered.filter(
+    (candidate) => candidate.kind === "side" && !fixedSideKeys.has(candidateKey(candidate))
+  ).length;
   return {
-    main: Math.max(0, 7 - filtered.filter((candidate) => candidate.kind === "main").length),
-    side: Math.max(0, 7 - filtered.filter((candidate) => candidate.kind === "side").length),
+    main: Math.max(0, 7 - fixedMainCount - availableMains),
+    side: Math.max(0, 7 - fixedSideCount - availableSides),
   };
 }
 
@@ -115,11 +153,10 @@ function generatedToCandidates(
   return generated.map((dish) => createAiCandidate(kind, dish));
 }
 
-function fillDishes(
+function candidatesForKind(
   preferred: WeeklyCandidate[],
   generated: WeeklyDish[],
-  kind: WeeklyDishKind,
-  allowRepeat: boolean
+  kind: WeeklyDishKind
 ): WeeklyCandidate[] {
   const combined = [
     ...preferred.filter((candidate) => candidate.kind === kind),
@@ -131,11 +168,62 @@ function fillDishes(
     if (!unique.has(key)) unique.set(key, candidate);
   }
 
-  const options = [...unique.values()];
-  if (options.length === 0) return [];
-  if (!allowRepeat && options.length < 7) return options;
+  return [...unique.values()];
+}
 
-  return Array.from({ length: 7 }, (_, index) => options[index % options.length]!);
+function fixedSelectionMap(
+  fixedSelections: WeeklyFixedDaySelection[]
+): Map<number, WeeklyFixedDaySelection> {
+  const map = new Map<number, WeeklyFixedDaySelection>();
+  for (const selection of fixedSelections) {
+    if (selection.dayIndex < 1 || selection.dayIndex > 7) continue;
+    map.set(selection.dayIndex, selection);
+  }
+  return map;
+}
+
+function fillDishesForWeek(
+  preferred: WeeklyCandidate[],
+  generated: WeeklyDish[],
+  kind: WeeklyDishKind,
+  _allowRepeat: boolean,
+  fixedSelections: WeeklyFixedDaySelection[]
+): WeeklyCandidate[] {
+  const options = candidatesForKind(preferred, generated, kind);
+  const fixedByDay = fixedSelectionMap(fixedSelections);
+  const used = new Set<string>();
+  const autoUsed = new Set<string>();
+  const slots: Array<WeeklyCandidate | undefined> = Array.from({ length: 7 });
+
+  for (let dayIndex = 1; dayIndex <= 7; dayIndex += 1) {
+    const fixed = fixedByDay.get(dayIndex);
+    const fixedCandidate = kind === "main" ? fixed?.main : fixed?.side;
+    if (fixedCandidate) {
+      slots[dayIndex - 1] = fixedCandidate;
+      used.add(candidateKey(fixedCandidate));
+    }
+  }
+
+  for (let dayIndex = 1; dayIndex <= 7; dayIndex += 1) {
+    const fixed = fixedByDay.get(dayIndex);
+    const fixedCandidate = kind === "main" ? fixed?.main : fixed?.side;
+    if (fixedCandidate) continue;
+
+    const candidate = options.find((option) => {
+      const key = candidateKey(option);
+      return !used.has(key) && !autoUsed.has(key);
+    });
+
+    if (candidate) {
+      slots[dayIndex - 1] = candidate;
+      autoUsed.add(candidateKey(candidate));
+      continue;
+    }
+
+    break;
+  }
+
+  return slots.filter((candidate): candidate is WeeklyCandidate => Boolean(candidate));
 }
 
 function summarizeUsedCandidates(
@@ -166,18 +254,21 @@ export function buildWeeklyPlanWithMeta(
   options: WeeklyPlanBuildOptions = {}
 ): WeeklyPlanBuildResult | null {
   const allowRepeat = options.allowRepeat ?? Boolean(generatedPlan);
+  const fixedSelections = options.fixedSelections ?? [];
   const filtered = uniqueCandidates(candidates, request);
-  const mains = fillDishes(
+  const mains = fillDishesForWeek(
     filtered,
     generatedPlan?.days.map((day) => day.main) ?? [],
     "main",
-    allowRepeat
+    allowRepeat,
+    fixedSelections
   );
-  const sides = fillDishes(
+  const sides = fillDishesForWeek(
     filtered,
     generatedPlan?.days.map((day) => day.side) ?? [],
     "side",
-    allowRepeat
+    allowRepeat,
+    fixedSelections
   );
   if (mains.length < 7 || sides.length < 7) return null;
 

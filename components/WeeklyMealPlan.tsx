@@ -12,6 +12,7 @@ import { categorizeShoppingList } from "@/lib/weekly-shopping";
 import {
   findRecommendedDaySuggestion,
   weeklyCandidateKey,
+  weeklyCandidateSelectionKey,
   type WeeklyCandidateSummary,
   type WeeklyCandidate,
 } from "@/lib/weekly-plan-builder";
@@ -39,6 +40,7 @@ interface Props {
   onStartDateChange: (date: string) => void;
   onCheckedChange: (index: number) => void;
   onDayReplace: (dayIndex: number, updated: DayMealPlan) => void;
+  onPlanEditApply: (days: DayMealPlan[]) => void;
   onSaved: () => void;
   onClear: () => void;
 }
@@ -347,6 +349,205 @@ function ShoppingMode({
   );
 }
 
+function sourceLabel(candidate: WeeklyCandidate): string {
+  switch (candidate.source) {
+    case "manual":
+      return "レシピ";
+    case "favorite":
+      return "お気に入り";
+    case "history":
+      return "履歴";
+    case "ai":
+      return "AI";
+  }
+}
+
+function candidateOptionLabel(candidate: WeeklyCandidate): string {
+  const ingredients = candidate.dish.keyIngredients.slice(0, 3).join("、");
+  return ingredients
+    ? `${candidate.dish.dishName} (${sourceLabel(candidate)} / ${ingredients})`
+    : `${candidate.dish.dishName} (${sourceLabel(candidate)})`;
+}
+
+function uniqueCandidateOptions(
+  candidates: WeeklyCandidate[],
+  kind: WeeklyDishKind
+): WeeklyCandidate[] {
+  const map = new Map<string, WeeklyCandidate>();
+  for (const candidate of candidates) {
+    if (candidate.kind !== kind || candidate.source === "ai") continue;
+    const key = weeklyCandidateSelectionKey(candidate);
+    if (!map.has(key)) map.set(key, candidate);
+  }
+  return [...map.values()];
+}
+
+interface PlanEditDraft {
+  dayIndex: number;
+  mainKey: string;
+  sideKey: string;
+}
+
+function createPlanEditDraft(days: DayMealPlan[]): PlanEditDraft[] {
+  return days.map((day) => ({
+    dayIndex: day.dayIndex,
+    mainKey: "",
+    sideKey: "",
+  }));
+}
+
+function WeeklyPlanBulkEditor({
+  days,
+  candidates,
+  onApply,
+}: {
+  days: DayMealPlan[];
+  candidates: WeeklyCandidate[];
+  onApply: (days: DayMealPlan[]) => void;
+}) {
+  const [drafts, setDrafts] = useState<PlanEditDraft[]>(() =>
+    createPlanEditDraft(days)
+  );
+  const mainOptions = useMemo(
+    () => uniqueCandidateOptions(candidates, "main"),
+    [candidates]
+  );
+  const sideOptions = useMemo(
+    () => uniqueCandidateOptions(candidates, "side"),
+    [candidates]
+  );
+  const candidateByKey = useMemo(
+    () =>
+      new Map(
+        candidates.map((candidate) => [
+          weeklyCandidateSelectionKey(candidate),
+          candidate,
+        ])
+      ),
+    [candidates]
+  );
+
+  useEffect(() => {
+    setDrafts(createPlanEditDraft(days));
+  }, [days]);
+
+  const updateDraft = (
+    dayIndex: number,
+    field: "mainKey" | "sideKey",
+    value: string
+  ) => {
+    setDrafts((current) =>
+      current.map((draft) =>
+        draft.dayIndex === dayIndex ? { ...draft, [field]: value } : draft
+      )
+    );
+  };
+
+  const handleApply = () => {
+    const draftByDay = new Map(drafts.map((draft) => [draft.dayIndex, draft]));
+    const nextDays = days.map((day) => {
+      const draft = draftByDay.get(day.dayIndex);
+      const mainCandidate = draft?.mainKey
+        ? candidateByKey.get(draft.mainKey)
+        : undefined;
+      const sideCandidate = draft?.sideKey
+        ? candidateByKey.get(draft.sideKey)
+        : undefined;
+      return {
+        ...day,
+        main:
+          mainCandidate?.kind === "main" ? mainCandidate.dish : day.main,
+        side:
+          sideCandidate?.kind === "side" ? sideCandidate.dish : day.side,
+      };
+    });
+    onApply(nextDays);
+    setDrafts(createPlanEditDraft(nextDays));
+  };
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-line bg-card p-4 shadow-sm sm:p-5">
+      <div>
+        <h3 className="text-base font-bold">週間献立を一括編集</h3>
+        <p className="mt-1 text-sm text-muted">
+          現在の料理を維持するか、候補から変更できます。AIは使いません。
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {days.map((day) => {
+          const draft = drafts.find((item) => item.dayIndex === day.dayIndex);
+          return (
+            <section
+              key={day.dayIndex}
+              className="rounded-xl border border-line bg-paper p-3"
+            >
+              <h4 className="mb-2 text-sm font-bold text-pine">
+                {day.dayIndex}日目
+              </h4>
+              <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2">
+                <label className="min-w-0 space-y-1">
+                  <span className="block text-xs font-bold text-ink">
+                    主菜
+                  </span>
+                  <select
+                    value={draft?.mainKey ?? ""}
+                    onChange={(event) =>
+                      updateDraft(day.dayIndex, "mainKey", event.target.value)
+                    }
+                    className="w-full min-w-0 rounded-xl border border-line bg-card px-3 py-3 text-sm focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20"
+                  >
+                    <option value="">現在の料理を維持: {day.main.dishName}</option>
+                    {mainOptions.map((candidate) => {
+                      const key = weeklyCandidateSelectionKey(candidate);
+                      return (
+                        <option key={key} value={key}>
+                          {candidateOptionLabel(candidate)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
+                <label className="min-w-0 space-y-1">
+                  <span className="block text-xs font-bold text-ink">
+                    副菜
+                  </span>
+                  <select
+                    value={draft?.sideKey ?? ""}
+                    onChange={(event) =>
+                      updateDraft(day.dayIndex, "sideKey", event.target.value)
+                    }
+                    className="w-full min-w-0 rounded-xl border border-line bg-card px-3 py-3 text-sm focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20"
+                  >
+                    <option value="">現在の料理を維持: {day.side.dishName}</option>
+                    {sideOptions.map((candidate) => {
+                      const key = weeklyCandidateSelectionKey(candidate);
+                      return (
+                        <option key={key} value={key}>
+                          {candidateOptionLabel(candidate)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleApply}
+        className="min-h-12 w-full rounded-xl bg-pine px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-pine-dark"
+      >
+        変更を反映
+      </button>
+    </section>
+  );
+}
+
 function DayCard({
   day,
   date,
@@ -470,6 +671,7 @@ export default function WeeklyMealPlanView({
   onStartDateChange,
   onCheckedChange,
   onDayReplace,
+  onPlanEditApply,
   onSaved,
   onClear,
 }: Props) {
@@ -626,6 +828,12 @@ export default function WeeklyMealPlanView({
         shoppingList={plan.shoppingList}
         checkedItems={checkedItems}
         onCheckedChange={onCheckedChange}
+      />
+
+      <WeeklyPlanBulkEditor
+        days={plan.days}
+        candidates={candidates}
+        onApply={onPlanEditApply}
       />
 
       {/* 保存・操作パネル */}

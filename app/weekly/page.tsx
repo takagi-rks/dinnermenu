@@ -1,7 +1,11 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import ManualWeeklySelector, {
+  createEmptyManualSelections,
+  type ManualWeeklySelection,
+} from "@/components/ManualWeeklySelector";
 import SuggestForm from "@/components/SuggestForm";
 import WeeklyMealPlanView from "@/components/WeeklyMealPlan";
 import {
@@ -15,14 +19,19 @@ import {
   buildRecommendedMealCandidates,
 } from "@/lib/meal-recommendation";
 import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
+import {
+  clearManualSelections,
+  loadManualSelections,
+  saveManualSelections,
+} from "@/lib/weekly-manual-selection-storage";
 import { loadWeeklyFavoriteEntries } from "@/lib/weekly-favorites";
 import {
   buildWeeklyPlanWithMeta,
   getWeeklyCandidateShortage,
-  hasFullWeekCandidates,
-  uniqueCandidates,
+  weeklyCandidateSelectionKey,
   type WeeklyCandidateSummary,
   type WeeklyCandidate,
+  type WeeklyFixedDaySelection,
   type WeeklyPlanBuildResult,
 } from "@/lib/weekly-plan-builder";
 import { carryCheckedItems, rebuildShoppingList } from "@/lib/weekly-shopping";
@@ -44,6 +53,31 @@ function formatShortageMessage(mainShortage: number, sideShortage: number): stri
   return messages.length > 0
     ? messages.join("。")
     : "条件に合う候補が不足しています";
+}
+
+function buildFixedSelections(
+  selections: ManualWeeklySelection[],
+  candidates: WeeklyCandidate[]
+): WeeklyFixedDaySelection[] {
+  const candidateByKey = new Map(
+    candidates.map((candidate) => [weeklyCandidateSelectionKey(candidate), candidate])
+  );
+
+  return selections
+    .map<WeeklyFixedDaySelection>((selection) => {
+      const main = selection.mainKey
+        ? candidateByKey.get(selection.mainKey)
+        : undefined;
+      const side = selection.sideKey
+        ? candidateByKey.get(selection.sideKey)
+        : undefined;
+      return {
+        dayIndex: selection.dayIndex,
+        main: main?.kind === "main" ? main : undefined,
+        side: side?.kind === "side" ? side : undefined,
+      };
+    })
+    .filter((selection) => selection.main || selection.side);
 }
 
 /** ローカルタイムの今日をYYYY-MM-DD で返す */
@@ -73,6 +107,11 @@ function WeeklyPageContent() {
   const [candidateSummary, setCandidateSummary] =
     useState<WeeklyCandidateSummary | null>(null);
   const [completeLocalPlan, setCompleteLocalPlan] = useState(false);
+  const [manualSelections, setManualSelections] = useState<ManualWeeklySelection[]>(
+    () => createEmptyManualSelections()
+  );
+  const [manualSelectionSavedAt, setManualSelectionSavedAt] = useState<number | null>(null);
+  const skipNextManualSelectionSaveRef = useRef(false);
 
   const loadCandidates = useCallback(async (): Promise<WeeklyCandidate[]> => {
     const favorites = loadWeeklyFavoriteEntries();
@@ -107,12 +146,25 @@ function WeeklyPageContent() {
       setCheckedItems(stored.checkedItems);
       setSaved(stored.saved);
     }
+    const storedSelections = loadManualSelections();
+    if (storedSelections) {
+      setManualSelections(storedSelections.selections);
+      setManualSelectionSavedAt(storedSelections.savedAt);
+    }
     setHydrated(true);
 
-    if (stored || favoritesMode) {
-      void loadCandidates().then(setCandidates);
-    }
+    void loadCandidates().then(setCandidates);
   }, [favoritesMode, loadCandidates]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (skipNextManualSelectionSaveRef.current) {
+      skipNextManualSelectionSaveRef.current = false;
+      return;
+    }
+    const savedAt = saveManualSelections(manualSelections);
+    setManualSelectionSavedAt(savedAt);
+  }, [hydrated, manualSelections]);
 
   // plan / checked / saved が変わるたびに localStorage へ永続化
   useEffect(() => {
@@ -142,11 +194,17 @@ function WeeklyPageContent() {
     setError(null);
     try {
       const availableCandidates = await loadCandidates();
+      const fixedSelections = buildFixedSelections(manualSelections, availableCandidates);
       const result = buildWeeklyPlanWithMeta(availableCandidates, req, undefined, {
         allowRepeat: false,
+        fixedSelections,
       });
       if (!result) {
-        const shortage = getWeeklyCandidateShortage(availableCandidates, req);
+        const shortage = getWeeklyCandidateShortage(
+          availableCandidates,
+          req,
+          fixedSelections
+        );
         setError(
           `AIなしで作成するには候補が足りません。${formatShortageMessage(
             shortage.main,
@@ -168,12 +226,19 @@ function WeeklyPageContent() {
     setError(null);
     try {
       const availableCandidates = await loadCandidates();
+      const fixedSelections = buildFixedSelections(manualSelections, availableCandidates);
       setCandidates(availableCandidates);
-      const filtered = uniqueCandidates(availableCandidates, req);
-      const generated = hasFullWeekCandidates(filtered)
+      const shortage = getWeeklyCandidateShortage(
+        availableCandidates,
+        req,
+        fixedSelections
+      );
+      const generated = shortage.main === 0 && shortage.side === 0
         ? undefined
         : await postWeeklySuggestion(req);
-      const result = buildWeeklyPlanWithMeta(availableCandidates, req, generated);
+      const result = buildWeeklyPlanWithMeta(availableCandidates, req, generated, {
+        fixedSelections,
+      });
       if (!result) {
         throw new Error(
           "履歴・お気に入りの候補が少なく、AI補完でも週間献立を作成できませんでした"
@@ -246,6 +311,32 @@ function WeeklyPageContent() {
     [request]
   );
 
+  const handlePlanEditApply = useCallback(
+    (nextDays: DayMealPlan[]) => {
+      setPlan((prev) => {
+        if (!prev) return prev;
+        const nextShoppingList = rebuildShoppingList(
+          nextDays,
+          request?.availableIngredients ?? []
+        );
+        setCheckedItems((currentCheckedItems) =>
+          carryCheckedItems(
+            prev.shoppingList,
+            currentCheckedItems,
+            nextShoppingList
+          )
+        );
+        setSaved(false);
+        return {
+          ...prev,
+          days: nextDays,
+          shoppingList: nextShoppingList,
+        };
+      });
+    },
+    [request]
+  );
+
   const handleSaved = useCallback(() => {
     setSaved(true);
   }, []);
@@ -263,6 +354,13 @@ function WeeklyPageContent() {
     setGenerationStatus(null);
     setCandidateSummary(null);
     setCompleteLocalPlan(false);
+  }, []);
+
+  const handleManualSelectionReset = useCallback(() => {
+    clearManualSelections();
+    skipNextManualSelectionSaveRef.current = true;
+    setManualSelections(createEmptyManualSelections());
+    setManualSelectionSavedAt(null);
   }, []);
 
   return (
@@ -288,6 +386,14 @@ function WeeklyPageContent() {
           </p>
         </section>
       )}
+
+      <ManualWeeklySelector
+        candidates={candidates}
+        selections={manualSelections}
+        savedAt={manualSelectionSavedAt}
+        onChange={setManualSelections}
+        onReset={handleManualSelectionReset}
+      />
 
       <SuggestForm
         loading={loading}
@@ -328,6 +434,7 @@ function WeeklyPageContent() {
           onStartDateChange={handleStartDateChange}
           onCheckedChange={handleCheckedChange}
           onDayReplace={handleDayReplace}
+          onPlanEditApply={handlePlanEditApply}
           onSaved={handleSaved}
           onClear={handleClear}
         />
