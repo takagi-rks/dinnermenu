@@ -12,6 +12,7 @@ import { categorizeShoppingList } from "@/lib/weekly-shopping";
 import {
   findRecommendedDaySuggestion,
   weeklyCandidateKey,
+  type WeeklyCandidateSummary,
   type WeeklyCandidate,
 } from "@/lib/weekly-plan-builder";
 import { RECOMMENDATION_REASON_LABELS } from "@/lib/meal-recommendation";
@@ -33,6 +34,8 @@ interface Props {
   candidates: WeeklyCandidate[];
   dishDetails: WeeklyCandidate[];
   generationStatus: "AI未使用" | "一部AI補完" | null;
+  candidateSummary: WeeklyCandidateSummary | null;
+  completeLocalPlan: boolean;
   onStartDateChange: (date: string) => void;
   onCheckedChange: (index: number) => void;
   onDayReplace: (dayIndex: number, updated: DayMealPlan) => void;
@@ -462,6 +465,8 @@ export default function WeeklyMealPlanView({
   candidates,
   dishDetails,
   generationStatus,
+  candidateSummary,
+  completeLocalPlan,
   onStartDateChange,
   onCheckedChange,
   onDayReplace,
@@ -538,8 +543,16 @@ export default function WeeklyMealPlanView({
     <div className="space-y-4">
       <section className="rounded-2xl border border-line bg-card p-2 shadow-sm sm:p-3">
         {generationStatus && (
-          <div className="mb-2 rounded-xl bg-pine/5 px-3 py-2 text-sm font-bold text-pine">
-            {generationStatus}
+          <div className="mb-2 space-y-1 rounded-xl bg-pine/5 px-3 py-2 text-sm text-pine">
+            <p className="font-bold">
+              {completeLocalPlan ? "完全AIなし献立" : generationStatus}
+            </p>
+            {candidateSummary && (
+              <p className="text-xs font-semibold text-pine/80">
+                使用した候補数: レシピ {candidateSummary.manual}件 / お気に入り{" "}
+                {candidateSummary.favorite}件 / 履歴 {candidateSummary.history}件
+              </p>
+            )}
           </div>
         )}
         <div className="flex items-center rounded-xl bg-paper p-1">

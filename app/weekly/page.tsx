@@ -18,8 +18,10 @@ import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
 import { loadWeeklyFavoriteEntries } from "@/lib/weekly-favorites";
 import {
   buildWeeklyPlanWithMeta,
+  getWeeklyCandidateShortage,
   hasFullWeekCandidates,
   uniqueCandidates,
+  type WeeklyCandidateSummary,
   type WeeklyCandidate,
   type WeeklyPlanBuildResult,
 } from "@/lib/weekly-plan-builder";
@@ -34,6 +36,15 @@ const FAVORITES_MODE_MESSAGE =
   "登録レシピを最優先し、不足分はお気に入りと週間保存済みの履歴から補完します。足りない場合だけAI補完ボタンを使えます。";
 
 type GenerationStatus = "AI未使用" | "一部AI補完";
+
+function formatShortageMessage(mainShortage: number, sideShortage: number): string {
+  const messages: string[] = [];
+  if (mainShortage > 0) messages.push(`主菜が${mainShortage}品不足しています`);
+  if (sideShortage > 0) messages.push(`副菜が${sideShortage}品不足しています`);
+  return messages.length > 0
+    ? messages.join("。")
+    : "条件に合う候補が不足しています";
+}
 
 /** ローカルタイムの今日をYYYY-MM-DD で返す */
 function todayString(): string {
@@ -59,6 +70,9 @@ function WeeklyPageContent() {
   const [candidates, setCandidates] = useState<WeeklyCandidate[]>([]);
   const [dishDetails, setDishDetails] = useState<WeeklyCandidate[]>([]);
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
+  const [candidateSummary, setCandidateSummary] =
+    useState<WeeklyCandidateSummary | null>(null);
+  const [completeLocalPlan, setCompleteLocalPlan] = useState(false);
 
   const loadCandidates = useCallback(async (): Promise<WeeklyCandidate[]> => {
     const favorites = loadWeeklyFavoriteEntries();
@@ -116,6 +130,8 @@ function WeeklyPageContent() {
     setCandidates(availableCandidates);
     setDishDetails(result.usedCandidates);
     setGenerationStatus(result.aiUsed ? "一部AI補完" : "AI未使用");
+    setCandidateSummary(result.candidateSummary);
+    setCompleteLocalPlan(result.isCompleteLocalPlan);
     setStartDate(todayString());
     setCheckedItems(new Array<boolean>(result.plan.shoppingList.length).fill(false));
     setSaved(false);
@@ -126,10 +142,16 @@ function WeeklyPageContent() {
     setError(null);
     try {
       const availableCandidates = await loadCandidates();
-      const result = buildWeeklyPlanWithMeta(availableCandidates, req);
+      const result = buildWeeklyPlanWithMeta(availableCandidates, req, undefined, {
+        allowRepeat: false,
+      });
       if (!result) {
+        const shortage = getWeeklyCandidateShortage(availableCandidates, req);
         setError(
-          "AIなしで作成するには、食材情報のある主菜と副菜をそれぞれ1品以上お気に入りまたは週間保存済みの履歴に登録してください。"
+          `AIなしで作成するには候補が足りません。${formatShortageMessage(
+            shortage.main,
+            shortage.side
+          )}`
         );
         return;
       }
@@ -172,6 +194,8 @@ function WeeklyPageContent() {
           setSaved(stored.saved);
           setDishDetails([]);
           setGenerationStatus(null);
+          setCandidateSummary(null);
+          setCompleteLocalPlan(false);
           setError(RESTORED_PLAN_MESSAGE);
           return;
         }
@@ -237,6 +261,8 @@ function WeeklyPageContent() {
     setCandidates([]);
     setDishDetails([]);
     setGenerationStatus(null);
+    setCandidateSummary(null);
+    setCompleteLocalPlan(false);
   }, []);
 
   return (
@@ -297,6 +323,8 @@ function WeeklyPageContent() {
           candidates={candidates}
           dishDetails={dishDetails}
           generationStatus={generationStatus}
+          candidateSummary={candidateSummary}
+          completeLocalPlan={completeLocalPlan}
           onStartDateChange={handleStartDateChange}
           onCheckedChange={handleCheckedChange}
           onDayReplace={handleDayReplace}

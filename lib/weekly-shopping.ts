@@ -1,12 +1,10 @@
 import type { DayMealPlan } from "@/lib/types";
+import {
+  SHOPPING_CATEGORY_DEFINITIONS,
+  type ShoppingCategoryId,
+} from "@/lib/weekly-shopping-categories";
 
-export type ShoppingCategoryId =
-  | "meat"
-  | "fish"
-  | "vegetables"
-  | "eggsDairy"
-  | "seasoning"
-  | "other";
+export type { ShoppingCategoryId } from "@/lib/weekly-shopping-categories";
 
 export interface ShoppingCategory {
   id: ShoppingCategoryId;
@@ -18,138 +16,6 @@ export interface ShoppingCategoryItem {
   item: string;
   originalIndex: number;
 }
-
-const CATEGORY_ORDER: Array<{ id: ShoppingCategoryId; label: string }> = [
-  { id: "meat", label: "肉" },
-  { id: "fish", label: "魚" },
-  { id: "vegetables", label: "野菜" },
-  { id: "eggsDairy", label: "卵・乳製品" },
-  { id: "seasoning", label: "調味料" },
-  { id: "other", label: "その他" },
-];
-
-const CATEGORY_KEYWORDS: Record<ShoppingCategoryId, string[]> = {
-  meat: [
-    "肉",
-    "牛",
-    "豚",
-    "鶏",
-    "とり",
-    "ひき肉",
-    "挽肉",
-    "ベーコン",
-    "ハム",
-    "ソーセージ",
-    "ウインナー",
-  ],
-  fish: [
-    "魚",
-    "鮭",
-    "さけ",
-    "サーモン",
-    "鯖",
-    "さば",
-    "鰯",
-    "いわし",
-    "鱈",
-    "たら",
-    "ぶり",
-    "海老",
-    "えび",
-    "エビ",
-    "イカ",
-    "いか",
-    "タコ",
-    "たこ",
-    "貝",
-    "ツナ",
-  ],
-  vegetables: [
-    "野菜",
-    "玉ねぎ",
-    "玉葱",
-    "たまねぎ",
-    "にんじん",
-    "人参",
-    "じゃがいも",
-    "キャベツ",
-    "白菜",
-    "レタス",
-    "トマト",
-    "きゅうり",
-    "ほうれん草",
-    "小松菜",
-    "ねぎ",
-    "長ねぎ",
-    "青ねぎ",
-    "大根",
-    "なす",
-    "茄子",
-    "ピーマン",
-    "パプリカ",
-    "もやし",
-    "きのこ",
-    "しめじ",
-    "えのき",
-    "舞茸",
-    "しいたけ",
-    "椎茸",
-    "ブロッコリー",
-    "ごぼう",
-    "れんこん",
-    "蓮根",
-    "かぼちゃ",
-    "南瓜",
-    "水菜",
-    "ニラ",
-  ],
-  eggsDairy: [
-    "卵",
-    "たまご",
-    "玉子",
-    "牛乳",
-    "チーズ",
-    "バター",
-    "ヨーグルト",
-    "生クリーム",
-    "乳",
-  ],
-  seasoning: [
-    "塩",
-    "砂糖",
-    "醤油",
-    "しょうゆ",
-    "味噌",
-    "みそ",
-    "酢",
-    "みりん",
-    "酒",
-    "料理酒",
-    "油",
-    "ごま油",
-    "オリーブオイル",
-    "ソース",
-    "ケチャップ",
-    "マヨネーズ",
-    "だし",
-    "出汁",
-    "コンソメ",
-    "鶏ガラ",
-    "こしょう",
-    "胡椒",
-    "にんにく",
-    "生姜",
-    "しょうが",
-    "唐辛子",
-    "カレー粉",
-    "片栗粉",
-    "小麦粉",
-    "パン粉",
-    "ごま",
-    "胡麻",
-  ],
-  other: [],
-};
 
 function normalizeItemName(item: string): string {
   return item
@@ -224,17 +90,11 @@ export function carryCheckedItems(
 
 function detectCategory(item: string): ShoppingCategoryId {
   const normalized = normalizeForMatch(item);
-  const categories: ShoppingCategoryId[] = [
-    "eggsDairy",
-    "seasoning",
-    "meat",
-    "fish",
-    "vegetables",
-  ];
 
-  for (const category of categories) {
-    if (CATEGORY_KEYWORDS[category].some((keyword) => normalized.includes(keyword))) {
-      return category;
+  for (const category of SHOPPING_CATEGORY_DEFINITIONS) {
+    if (category.id === "other") continue;
+    if (category.keywords.some((keyword) => normalized.includes(keyword.toLowerCase()))) {
+      return category.id;
     }
   }
 
@@ -242,7 +102,7 @@ function detectCategory(item: string): ShoppingCategoryId {
 }
 
 export function categorizeShoppingList(items: string[]): ShoppingCategory[] {
-  const categories = CATEGORY_ORDER.map<ShoppingCategory>(({ id, label }) => ({
+  const categories = SHOPPING_CATEGORY_DEFINITIONS.map<ShoppingCategory>(({ id, label }) => ({
     id,
     label,
     items: [],

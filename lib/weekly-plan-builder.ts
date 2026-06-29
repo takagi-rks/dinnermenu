@@ -16,6 +16,24 @@ export interface WeeklyPlanBuildResult {
   plan: WeeklyMealPlan;
   usedCandidates: WeeklyCandidate[];
   aiUsed: boolean;
+  candidateSummary: WeeklyCandidateSummary;
+  isCompleteLocalPlan: boolean;
+}
+
+export interface WeeklyCandidateSummary {
+  manual: number;
+  favorite: number;
+  history: number;
+  ai: number;
+}
+
+export interface WeeklyCandidateShortage {
+  main: number;
+  side: number;
+}
+
+export interface WeeklyPlanBuildOptions {
+  allowRepeat?: boolean;
 }
 
 function normalize(value: string): string {
@@ -79,6 +97,17 @@ export function hasFullWeekCandidates(candidates: WeeklyCandidate[]): boolean {
   );
 }
 
+export function getWeeklyCandidateShortage(
+  candidates: WeeklyCandidate[],
+  request: SuggestionRequest
+): WeeklyCandidateShortage {
+  const filtered = uniqueCandidates(candidates, request);
+  return {
+    main: Math.max(0, 7 - filtered.filter((candidate) => candidate.kind === "main").length),
+    side: Math.max(0, 7 - filtered.filter((candidate) => candidate.kind === "side").length),
+  };
+}
+
 function generatedToCandidates(
   generated: WeeklyDish[],
   kind: WeeklyDishKind
@@ -89,7 +118,8 @@ function generatedToCandidates(
 function fillDishes(
   preferred: WeeklyCandidate[],
   generated: WeeklyDish[],
-  kind: WeeklyDishKind
+  kind: WeeklyDishKind,
+  allowRepeat: boolean
 ): WeeklyCandidate[] {
   const combined = [
     ...preferred.filter((candidate) => candidate.kind === kind),
@@ -103,25 +133,51 @@ function fillDishes(
 
   const options = [...unique.values()];
   if (options.length === 0) return [];
+  if (!allowRepeat && options.length < 7) return options;
 
   return Array.from({ length: 7 }, (_, index) => options[index % options.length]!);
+}
+
+function summarizeUsedCandidates(
+  candidates: WeeklyCandidate[]
+): WeeklyCandidateSummary {
+  const seen = new Set<string>();
+  const summary: WeeklyCandidateSummary = {
+    manual: 0,
+    favorite: 0,
+    history: 0,
+    ai: 0,
+  };
+
+  for (const candidate of candidates) {
+    const key = candidateKey(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    summary[candidate.source] += 1;
+  }
+
+  return summary;
 }
 
 export function buildWeeklyPlanWithMeta(
   candidates: WeeklyCandidate[],
   request: SuggestionRequest,
-  generatedPlan?: WeeklyMealPlan
+  generatedPlan?: WeeklyMealPlan,
+  options: WeeklyPlanBuildOptions = {}
 ): WeeklyPlanBuildResult | null {
+  const allowRepeat = options.allowRepeat ?? Boolean(generatedPlan);
   const filtered = uniqueCandidates(candidates, request);
   const mains = fillDishes(
     filtered,
     generatedPlan?.days.map((day) => day.main) ?? [],
-    "main"
+    "main",
+    allowRepeat
   );
   const sides = fillDishes(
     filtered,
     generatedPlan?.days.map((day) => day.side) ?? [],
-    "side"
+    "side",
+    allowRepeat
   );
   if (mains.length < 7 || sides.length < 7) return null;
 
@@ -144,6 +200,8 @@ export function buildWeeklyPlanWithMeta(
     },
     usedCandidates,
     aiUsed: usedCandidates.some((candidate) => candidate.source === "ai"),
+    candidateSummary: summarizeUsedCandidates(usedCandidates),
+    isCompleteLocalPlan: !usedCandidates.some((candidate) => candidate.source === "ai"),
   };
 }
 
