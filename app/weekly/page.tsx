@@ -7,9 +7,13 @@ import WeeklyMealPlanView from "@/components/WeeklyMealPlan";
 import {
   ApiRequestError,
   fetchMeals,
+  fetchRecipes,
   postWeeklySuggestion,
 } from "@/lib/api-client";
-import { buildRecommendedMealCandidates } from "@/lib/meal-recommendation";
+import {
+  buildManualRecipeCandidates,
+  buildRecommendedMealCandidates,
+} from "@/lib/meal-recommendation";
 import { loadPlan, savePlan, clearPlan } from "@/lib/plan-storage";
 import { loadWeeklyFavoriteEntries } from "@/lib/weekly-favorites";
 import {
@@ -21,12 +25,13 @@ import {
 } from "@/lib/weekly-plan-builder";
 import { carryCheckedItems, rebuildShoppingList } from "@/lib/weekly-shopping";
 import type { DayMealPlan, SuggestionRequest, WeeklyMealPlan } from "@/lib/types";
+import type { MealRecord, RecipeRecord } from "@/lib/types";
 
 const RECOVERABLE_GENERATION_STATUSES = new Set([429, 502, 503]);
 const RESTORED_PLAN_MESSAGE =
   "AI生成に失敗したため、前回成功した週間献立を表示しました";
 const FAVORITES_MODE_MESSAGE =
-  "お気に入りを最優先し、不足分は週間保存済みの履歴から補完します。足りない場合だけAI補完ボタンを使えます。";
+  "登録レシピを最優先し、不足分はお気に入りと週間保存済みの履歴から補完します。足りない場合だけAI補完ボタンを使えます。";
 
 type GenerationStatus = "AI未使用" | "一部AI補完";
 
@@ -57,12 +62,25 @@ function WeeklyPageContent() {
 
   const loadCandidates = useCallback(async (): Promise<WeeklyCandidate[]> => {
     const favorites = loadWeeklyFavoriteEntries();
+    let recipes: RecipeRecord[] = [];
+    let meals: MealRecord[] = [];
+
     try {
-      const meals = await fetchMeals({ limit: 500 });
-      return buildRecommendedMealCandidates(meals, favorites);
+      recipes = await fetchRecipes({ limit: 500 });
     } catch {
-      return buildRecommendedMealCandidates([], favorites);
+      recipes = [];
     }
+
+    try {
+      meals = await fetchMeals({ limit: 500 });
+    } catch {
+      meals = [];
+    }
+
+    return [
+      ...buildManualRecipeCandidates(recipes),
+      ...buildRecommendedMealCandidates(meals, favorites),
+    ];
   }, []);
 
   // マウント後にlocalStorageを復元(SSRとの不一致を避けるため useEffect 内で実行)
@@ -226,7 +244,7 @@ function WeeklyPageContent() {
       <section>
         <h1 className="text-xl font-bold">1週間まとめて決める</h1>
         <p className="mt-1 text-sm text-muted">
-          お気に入りと履歴を優先して、7日分の主菜・副菜を組み立てます。
+          登録レシピ、お気に入り、履歴の順に優先して、7日分の主菜・副菜を組み立てます。
           通常履歴は種別不明のため、候補には週間保存済みの履歴だけを使います。
           AIは明示ボタンを押した場合だけ不足分の補完に使います。
           予算・調理時間は
@@ -248,7 +266,7 @@ function WeeklyPageContent() {
       <SuggestForm
         loading={loading}
         onSubmit={handleLocalSubmit}
-        submitLabel="お気に入り・履歴だけで作る（AIなし）"
+        submitLabel="レシピ・お気に入り・履歴だけで作る（AIなし）"
         loadingLabel="週間献立を作成中…"
         secondarySubmitLabel="候補不足分だけAIで補って作る"
         onSecondarySubmit={handleAiAssistedSubmit}

@@ -5,7 +5,10 @@ import type {
   MealRecord,
   MealSuggestion,
   MonthlyCostSummary,
+  CreateRecipeInput,
+  RecipeRecord,
   SuggestionRequest,
+  UpdateRecipeInput,
   UpdateMealInput,
   WeeklyMealPlan,
 } from "@/lib/types";
@@ -112,4 +115,42 @@ export function postDayResuggest(
 
 export function fetchCostSummary(): Promise<MonthlyCostSummary[]> {
   return request<MonthlyCostSummary[]>("/api/meals/cost-summary");
+}
+
+export function fetchRecipes(params: {
+  q?: string;
+  kind?: "main" | "side";
+  favoriteOnly?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<RecipeRecord[]> {
+  const search = new URLSearchParams();
+  if (params.q) search.set("q", params.q);
+  if (params.kind) search.set("kind", params.kind);
+  if (params.favoriteOnly) search.set("favorite", "true");
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.offset !== undefined) search.set("offset", String(params.offset));
+  const qs = search.toString();
+  return request<RecipeRecord[]>(`/api/recipes${qs ? `?${qs}` : ""}`);
+}
+
+export function postRecipe(body: CreateRecipeInput): Promise<RecipeRecord> {
+  return request<RecipeRecord>("/api/recipes", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function patchRecipe(
+  id: string,
+  body: UpdateRecipeInput
+): Promise<RecipeRecord> {
+  return request<RecipeRecord>(`/api/recipes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function removeRecipe(id: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/api/recipes/${id}`, { method: "DELETE" });
 }

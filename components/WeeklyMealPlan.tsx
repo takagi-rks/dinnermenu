@@ -416,7 +416,7 @@ function DayCard({
             disabled={resuggesting}
             className="min-h-11 rounded-lg border border-line px-3 py-2 text-xs font-semibold leading-snug text-ink transition-colors hover:border-pine/50 disabled:opacity-40"
           >
-            お気に入り・履歴から変更
+            レシピ・お気に入り・履歴から変更
           </button>
           <button
             type="button"

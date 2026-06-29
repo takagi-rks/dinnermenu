@@ -23,7 +23,7 @@ export default function RootLayout({
             <Link href="/" className="text-base font-bold tracking-wide text-pine sm:text-lg">
               今夜のごはん
             </Link>
-            <nav className="grid grid-cols-5 gap-1 text-center text-[11px] min-[360px]:text-xs sm:flex sm:text-sm">
+            <nav className="grid grid-cols-3 gap-1 text-center text-[11px] min-[360px]:grid-cols-6 min-[360px]:text-xs sm:flex sm:text-sm">
               <Link
                 href="/"
                 className="rounded-full px-0.5 py-2 font-medium text-ink hover:bg-line/60 sm:px-3"
@@ -41,6 +41,12 @@ export default function RootLayout({
                 className="rounded-full px-0.5 py-2 font-medium text-ink hover:bg-line/60 sm:px-3"
               >
                 履歴
+              </Link>
+              <Link
+                href="/recipes"
+                className="rounded-full px-0.5 py-2 font-medium text-ink hover:bg-line/60 sm:px-3"
+              >
+                レシピ
               </Link>
               <Link
                 href="/calendar"

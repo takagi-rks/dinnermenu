@@ -33,6 +33,19 @@ function candidateKey(candidate: WeeklyCandidate): string {
   return weeklyCandidateKey(candidate.kind, candidate.dish.dishName);
 }
 
+function sourcePriority(candidate: WeeklyCandidate): number {
+  switch (candidate.source) {
+    case "manual":
+      return 4;
+    case "favorite":
+      return 3;
+    case "history":
+      return 2;
+    case "ai":
+      return 1;
+  }
+}
+
 function isAllowed(candidate: WeeklyCandidate, avoidIngredients: string[]): boolean {
   const searchable = normalize(
     [candidate.dish.dishName, ...candidate.dish.keyIngredients].join(" ")
@@ -52,6 +65,7 @@ export function uniqueCandidates(
   }
   return [...unique.values()].sort(
     (a, b) =>
+      sourcePriority(b) - sourcePriority(a) ||
       b.score - a.score ||
       (a.lastCookedOn ?? "").localeCompare(b.lastCookedOn ?? "") ||
       a.dish.dishName.localeCompare(b.dish.dishName, "ja")

@@ -31,6 +31,20 @@ const dateString = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "日付はYYYY-MM-DD形式で指定してください");
 
 const costYen = z.number().int().min(0).max(100000).nullable().optional();
+const dishKind = z.enum(["main", "side"]);
+const recipeUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((value) => {
+    if (value === "") return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "URLはhttpまたはhttpsで始まる形式で入力してください");
 
 /** 履歴保存の検証 */
 export const createMealSchema = z.object({
@@ -66,6 +80,41 @@ export const listMealsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   from: dateString.optional(),
   to: dateString.optional(),
+});
+
+/** 手動レシピ登録の検証 */
+export const createRecipeSchema = z.object({
+  recipeName: z.string().trim().min(1, "レシピ名は必須です").max(100),
+  kind: dishKind,
+  ingredients: z.array(z.string().trim().min(1).max(100)).max(40).default([]),
+  memo: z.string().trim().max(2000).optional().default(""),
+  recipeUrl: recipeUrl.optional().default(""),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  isFavorite: z.boolean().optional().default(false),
+});
+
+/** 手動レシピ部分更新の検証 */
+export const updateRecipeSchema = z
+  .object({
+    recipeName: z.string().trim().min(1, "レシピ名は必須です").max(100).optional(),
+    kind: dishKind.optional(),
+    ingredients: z.array(z.string().trim().min(1).max(100)).max(40).optional(),
+    memo: z.string().trim().max(2000).optional(),
+    recipeUrl: recipeUrl.optional(),
+    rating: z.number().int().min(1).max(5).nullable().optional(),
+    isFavorite: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "更新する項目を1つ以上指定してください",
+  });
+
+/** 手動レシピ一覧クエリの検証 */
+export const listRecipesQuerySchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  kind: dishKind.optional(),
+  favorite: z.enum(["true", "false"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 /** 週間献立の1品の検証 */

@@ -1,14 +1,15 @@
-import type { MealRecord, WeeklyDish } from "@/lib/types";
+import type { MealRecord, RecipeRecord, WeeklyDish } from "@/lib/types";
 import type { WeeklyDishKind, WeeklyFavorite } from "@/lib/weekly-favorites";
 
 export type RecommendationReason =
+  | "manual"
   | "favorite"
   | "high-rating"
   | "frequent"
   | "not-recent"
   | "ai";
 
-export type RecommendationSource = "favorite" | "history" | "ai";
+export type RecommendationSource = "manual" | "favorite" | "history" | "ai";
 
 export interface RecommendedMealCandidate {
   kind: WeeklyDishKind;
@@ -40,6 +41,7 @@ const RECENT_DAYS_PENALTY = 10;
 const STALE_DAYS_BONUS = 21;
 
 export const RECOMMENDATION_REASON_LABELS: Record<RecommendationReason, string> = {
+  manual: "登録レシピ",
   favorite: "お気に入り",
   "high-rating": "高評価",
   frequent: "よく作る",
@@ -194,6 +196,45 @@ export function buildRecommendedMealCandidates(
       (a, b) =>
         b.score - a.score ||
         (a.lastCookedOn ?? "").localeCompare(b.lastCookedOn ?? "") ||
+        a.dish.dishName.localeCompare(b.dish.dishName, "ja")
+    );
+}
+
+export function buildManualRecipeCandidates(
+  recipes: RecipeRecord[]
+): RecommendedMealCandidate[] {
+  return recipes
+    .filter((recipe) => recipe.ingredients.length > 0)
+    .map((recipe) => {
+      const reasons: RecommendationReason[] = ["manual"];
+      let score = 1000;
+      if (recipe.isFavorite) {
+        score += 50;
+        reasons.push("favorite");
+      }
+      if (recipe.rating !== null) {
+        score += recipe.rating * 8;
+        if (recipe.rating >= 4) reasons.push("high-rating");
+      }
+
+      return {
+        kind: recipe.kind,
+        dish: {
+          dishName: recipe.recipeName,
+          keyIngredients: recipe.ingredients,
+        },
+        costYen: null,
+        score,
+        reasons,
+        source: "manual" as const,
+        cookedCount: 0,
+        lastCookedOn: null,
+        averageRating: recipe.rating,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
         a.dish.dishName.localeCompare(b.dish.dishName, "ja")
     );
 }

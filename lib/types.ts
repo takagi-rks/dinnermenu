@@ -61,6 +61,45 @@ export interface UpdateMealInput {
   costYen?: number | null;
 }
 
+/** 週間献立で扱う料理種別 */
+export type DishKind = "main" | "side";
+
+/** 手動登録レシピ(DB行に対応) */
+export interface RecipeRecord {
+  id: string;
+  recipeName: string;
+  kind: DishKind;
+  ingredients: string[];
+  memo: string;
+  recipeUrl: string;
+  rating: number | null;
+  isFavorite: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 手動レシピ登録リクエスト */
+export interface CreateRecipeInput {
+  recipeName: string;
+  kind: DishKind;
+  ingredients: string[];
+  memo?: string;
+  recipeUrl?: string;
+  rating?: number | null;
+  isFavorite?: boolean;
+}
+
+/** 手動レシピ更新リクエスト(部分更新) */
+export interface UpdateRecipeInput {
+  recipeName?: string;
+  kind?: DishKind;
+  ingredients?: string[];
+  memo?: string;
+  recipeUrl?: string;
+  rating?: number | null;
+  isFavorite?: boolean;
+}
+
 /** APIエラーレスポンスの共通形 */
 export interface ApiError {
   error: string;
